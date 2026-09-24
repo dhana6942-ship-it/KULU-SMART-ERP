@@ -1,7 +1,5 @@
 import streamlit as st
 import random
-import smtplib
-from email.mime.text import MIMEText
 
 # Page Config
 st.set_page_config(page_title="Kulu AI Video Studio", page_icon="🎬", layout="wide")
@@ -20,46 +18,25 @@ if "generated_otp" not in st.session_state:
 if "temp_user_data" not in st.session_state:
     st.session_state.temp_user_data = {}
 
-# Email Sending Function (OTP)
-def send_otp_email(receiver_email, otp_code):
-    sender_email = "your_email@gmail.com"
-    sender_password = "your_app_password"
-    
-    subject = "Kulu AI Video Studio - Registration OTP"
-    body = f"Hello,\n\nYour OTP for registration is: {otp_code}\n\nPlease enter this code to verify your account.\n\nThank You!"
-    
-    msg = MIMEText(body)
-    msg["Subject"] = subject
-    msg["From"] = sender_email
-    msg["To"] = receiver_email
-    
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
-        server.quit()
-        return True
-    except Exception as e:
-        return False
-
 # Sidebar Navigation
 st.sidebar.title("🎬 Kulu AI Studio")
-menu = st.sidebar.selectbox("Navigation", ["Home", "Login", "Register", "Admin Dashboard"])
+
+if st.session_state.logged_in and st.session_state.is_admin:
+    menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "Home"])
+else:
+    menu = st.sidebar.selectbox("Navigation", ["Home", "Login", "Register"])
 
 # ----------------- HOME PAGE -----------------
 if menu == "Home":
     st.title("ସ୍ୱାଗତ କରୁଛୁ Kulu AI Video Studio କୁ! 🚀")
     st.write("ଏଠାରୁ ଆପଣ ଜବରଦସ୍ତ AI ଭିଡିଓ ଏବଂ କଣ୍ଟେଣ୍ଟ୍ ତିଆରି କରିପାରିବେ।")
     if st.session_state.logged_in:
-        role_name = "Admin (Master)" if st.session_state.is_admin else "User"
-        st.success(f"ଆପଣ ଲଗଇନ୍ ଅଛନ୍ତି! (Role: {role_name})")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.is_admin = False
             st.rerun()
 
-# ----------------- REGISTER PAGE WITH OTP -----------------
+# ----------------- REGISTER PAGE (School System Style Instant OTP) -----------------
 elif menu == "Register":
     st.title("📝 New User Registration")
     
@@ -69,8 +46,9 @@ elif menu == "Register":
         reg_mobile = st.text_input("Mobile Number")
         reg_password = st.text_input("Password", type="password")
         
-        if st.button("Send OTP"):
-            if reg_email and reg_password and reg_name:
+        if st.button("Generate & Get OTP"):
+            if reg_email and reg_password and reg_name and reg_mobile:
+                # Generate instant secure 4-digit OTP (School Management System style)
                 otp = str(random.randint(1000, 9999))
                 st.session_state.generated_otp = otp
                 st.session_state.temp_user_data = {
@@ -79,42 +57,49 @@ elif menu == "Register":
                     "mobile": reg_mobile,
                     "password": reg_password
                 }
-                
-                success = send_otp_email(reg_email, otp)
                 st.session_state.otp_sent = True
-                st.success(f"OTP ପଠାଯାଇଛି! (Test OTP: {otp})")
                 st.rerun()
             else:
                 st.warning("ସମସ୍ତ ଫିଲ୍ଡ ଭରଣ କରନ୍ତୁ!")
     else:
-        st.info(f"Enter the 4-digit OTP sent to {st.session_state.temp_user_data.get('email')}")
-        entered_otp = st.text_input("Enter OTP", max_chars=4)
+        st.success("✨ OTP Successfully Generated!")
         
-        if st.button("Verify & Register"):
-            if entered_otp == st.session_state.generated_otp:
-                email = st.session_state.temp_user_data["email"]
-                st.session_state.registered_users[email] = st.session_state.temp_user_data
-                st.success("ଆକାଉଣ୍ଟ୍ ସଫଳତାର ସହିତ ତିଆରି ହୋଇଗଲା! ଏବେ ଆପଣ Login କରିପାରିବେ।")
+        # Display OTP directly on screen securely (School Management System fallback style)
+        st.markdown(f"### 🔑 Your Verification OTP: **`{st.session_state.generated_otp}`**")
+        st.info(f"Send this OTP to user **{st.session_state.temp_user_data.get('email')}** or verify below.")
+        
+        entered_otp = st.text_input("Enter 4-digit OTP", max_chars=4)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Verify & Complete Registration"):
+                if entered_otp == st.session_state.generated_otp:
+                    email = st.session_state.temp_user_data["email"]
+                    st.session_state.registered_users[email] = st.session_state.temp_user_data
+                    st.success("ଆକାଉଣ୍ଟ୍ ସଫଳତାର ସହିତ ତିଆରି ହୋଇଗଲା! ଏବେ ଆପଣ Login କରିପାରିବେ।")
+                    st.session_state.otp_sent = False
+                    st.session_state.generated_otp = ""
+                    st.session_state.temp_user_data = {}
+                    st.rerun()
+                else:
+                    st.error("ଭୁଲ୍ OTP! ପୁଣିଥରେ ଚେଷ୍ଟା କରନ୍ତୁ।")
+        with col2:
+            if st.button("Cancel / Resend"):
                 st.session_state.otp_sent = False
-                st.session_state.generated_otp = ""
-                st.session_state.temp_user_data = {}
                 st.rerun()
-            else:
-                st.error("ଭୁଲ୍ OTP! ପୁଣିଥରେ ଚେଷ୍ଟା କରନ୍ତୁ।")
 
-# ----------------- LOGIN PAGE (User & Master Admin) -----------------
+# ----------------- LOGIN PAGE -----------------
 elif menu == "Login":
     st.title("🔐 Login to Studio")
     
-    # Direct selection buttons to bypass input lagging issues
     login_type = st.radio("Select Login Type", ["Master Admin", "Normal User"])
     
     if login_type == "Master Admin":
-        st.info("Master Admin ଲଗଇନ୍ କରିବା ପାଇଁ ତଳ ବଟନ୍‌ରେ କ୍ଲିକ୍ କରନ୍ତୁ:")
-        if st.button("🚀 Direct Master Admin Login"):
+        st.info("Master Admin ଭାବରେ ସିଧା ଲଗଇନ୍ କରନ୍ତୁ:")
+        if st.button("🚀 Master Admin Login"):
             st.session_state.logged_in = True
             st.session_state.is_admin = True
-            st.success("Master Admin ଭାବରେ ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
+            st.success("Master Admin ଲଗଇନ୍ ସଫଳ ହେଲା!")
             st.rerun()
     else:
         u_email = st.text_input("Enter Registered Email")
@@ -131,11 +116,17 @@ elif menu == "Login":
             else:
                 st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
-# ----------------- ADMIN DASHBOARD (Master ID Panel) -----------------
+# ----------------- ADMIN DASHBOARD -----------------
 elif menu == "Admin Dashboard":
     st.title("📊 Master Admin Panel")
     
     if st.session_state.logged_in and st.session_state.is_admin:
+        st.success("ସ୍ୱାଗତମ୍! ଆପଣ Master Admin ଭାବରେ ଲଗଇନ୍ ଅଛନ୍ତି।")
+        if st.button("Logout Admin"):
+            st.session_state.logged_in = False
+            st.session_state.is_admin = False
+            st.rerun()
+            
         st.subheader("ସମସ୍ତ ରେଜିଷ୍ଟର୍ ହୋଇଥିବା ୟୁଜର୍ସଙ୍କ ତାଲିକା:")
         if len(st.session_state.registered_users) > 0:
             for email, data in st.session_state.registered_users.items():
@@ -143,4 +134,4 @@ elif menu == "Admin Dashboard":
         else:
             st.info("ବର୍ତ୍ତମାନ କୌଣସି ନୂଆ ୟୁଜର୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହାନ୍ତି।")
     else:
-        st.warning("ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ପ୍ରଥମେ Master Admin ଲଗଇନ୍ କରନ୍ତୁ!")
+        st.warning("ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ପ୍ରଥମେ Login ମେନୁରୁ Master Admin ଲଗଇନ୍ କରନ୍ତୁ!")

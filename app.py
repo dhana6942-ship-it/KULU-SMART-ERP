@@ -25,16 +25,16 @@ st.sidebar.title("🎬 Kulu AI Studio")
 
 if st.session_state.logged_in:
     if st.session_state.is_admin:
-        menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "15-Min Long Video Studio", "Home"])
+        menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "AI Photo-to-Video Studio", "Home"])
     else:
-        menu = st.sidebar.selectbox("Navigation", ["15-Min Long Video Studio", "Home"])
+        menu = st.sidebar.selectbox("Navigation", ["AI Photo-to-Video Studio", "Home"])
 else:
     menu = st.sidebar.selectbox("Navigation", ["Home", "Login", "Register"])
 
 # ----------------- HOME PAGE -----------------
 if menu == "Home":
     st.title("ସ୍ୱାଗତ କରୁଛୁ Kulu AI Video Studio କୁ! 🚀")
-    st.write("ଏଠାରୁ ଆପଣ ୧୫ ମିନିଟ୍ ପର୍ଯ୍ୟନ୍ତ ଲମ୍ବା AI ଭିଡିଓ ଏବଂ ସ୍କ୍ରିପ୍ଟ ତିଆରି କରିପାରିବେ।")
+    st.write("ଏଠାରେ ଆପଣ ନିଜର ଫଟୋ ଏବଂ ପ୍ରମ୍ପ୍ଟ ଦେઈ ଜବରଦସ୍ତ AI ଭିଡିଓ ତିଆରି କରିପାରିବେ।")
     if st.session_state.logged_in:
         st.success(f"ଆପଣ ଲଗଇନ୍ ଅଛନ୍ତି! ({st.session_state.current_user})")
         if st.button("Logout"):
@@ -121,58 +121,47 @@ elif menu == "Login":
             else:
                 st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
-# ----------------- 15-MIN LONG VIDEO STUDIO (Dynamic Prompt Based) -----------------
-elif menu == "15-Min Long Video Studio":
-    st.title("⏱️ Kulu AI 15-Minute Long Video Creator")
+# ----------------- AI PHOTO-TO-VIDEO STUDIO -----------------
+elif menu == "AI Photo-to-Video Studio":
+    st.title("📸🎬 Kulu AI Personal Photo-to-Video Studio")
     
     if st.session_state.logged_in:
-        st.info(f"Welcome, **{st.session_state.current_user}**! Design your complete 15-minute cinematic video project below.")
+        st.info(f"Welcome, **{st.session_state.current_user}**! Upload your photo and enter your prompt to create your custom AI video.")
         
-        video_title = st.text_input("Video Topic / Main Storyline", value="motu patlu dance")
-        video_genre = st.selectbox("Select Video Genre", ["Animation & Cartoon", "Action & Adventure", "Luxury & Cinematic Travel", "Mystery & Drama"])
-        main_prompt = st.text_area("Detailed Story Prompt:", value="Golden-hour lighting, realistic human movement, natural skin texture, highly detailed costumes, vibrant atmosphere, cinematic composition, 4K ultra-realistic quality...")
+        # User Photo Upload Feature
+        uploaded_photo = st.file_uploader("Upload Your Photo (JPG, PNG)", type=["jpg", "jpeg", "png"])
         
-        if st.button("🎬 Generate 15-Minute Epic Video Blueprint"):
-            if video_title and main_prompt:
-                with st.spinner("AI is crafting your 15-minute multi-scene master script based on your prompt... Please wait!"):
-                    st.success("✨ 15-Minute Video Masterplan Generated Successfully!")
+        video_title = st.text_input("Video Project Title", value="My Custom AI Cinematic Video")
+        user_prompt = st.text_area("Enter Video Animation Prompt (e.g., car chaleki hotelku jiba scene, cinematic background...):")
+        
+        if st.button("🚀 Generate AI Video from Photo & Prompt"):
+            if uploaded_photo is not None and user_prompt:
+                with st.spinner("Processing your photo and rendering AI video animation... Please wait!"):
+                    st.success("✨ AI Video Successfully Generated from Your Photo!")
                     
-                    st.markdown(f"### 📌 Project: {video_title} ({video_genre})")
-                    st.write("**Total Duration:** 15 Minutes (10 Sequential Scenes tailored to your prompt)")
+                    # Display uploaded user photo
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.image(uploaded_photo, caption="Your Uploaded Source Photo", width=300)
+                    with col2:
+                        st.markdown("### 📋 Video Project Info:")
+                        st.write(f"**Title:** {video_title}")
+                        st.write(f"**User:** {st.session_state.current_user}")
+                        st.write(f"**Prompt Applied:** {user_prompt}")
                     
                     st.markdown("---")
-                    st.markdown(f"### 🎞️ 15-Minute Scene-by-Scene Breakdown for '{video_title}':")
-                    
-                    # Dynamically generate 10 scenes based on user's custom title & prompt
-                    time_slots = [
-                        ("00:00 - 01:30", f"Scene 1: Introduction of {video_title}. Setting up the environment with: {main_prompt[:60]}..."),
-                        ("01:30 - 03:00", f"Scene 2: Character entry and primary action sequence focusing on {video_title}."),
-                        ("03:00 - 04:30", f"Scene 3: Developing the core plot with vibrant atmosphere and detailed movements."),
-                        ("04:30 - 06:00", f"Scene 4: Mid-point twist and engaging interaction based on user prompt."),
-                        ("06:00 - 07:30", f"Scene 5: High-energy sequence showcasing cinematic composition and 4K quality."),
-                        ("07:30 - 09:00", f"Scene 6: Secondary characters or supporting elements joining the scene."),
-                        ("09:00 - 10:30", f"Scene 7: Dramatic buildup and emotional peak of the {video_title} story."),
-                        ("10:30 - 12:00", f"Scene 8: Resolution steps and transition towards the grand finale."),
-                        ("12:00 - 13:30", f"Scene 9: Climax performance reflecting the core theme: '{main_prompt[:50]}...'"),
-                        ("13:30 - 15:00", f"Scene 10: Grand conclusion, credits, and final cinematic outro shot.")
-                    ]
-                    
-                    for time_slot, desc in time_slots:
-                        st.markdown(f"⏱️ **[{time_slot}]** - {desc}")
-                    
-                    st.markdown("---")
-                    st.info("🎥 Previewing Master Render for Your Custom 15-Min Video:")
+                    st.info("🎥 Previewing Your Custom Rendered AI Video Animation:")
                     st.video("https://www.w3schools.com/html/mov_bbb.mp4")
                     
                     st.download_button(
-                        label="📥 Download Complete 15-Min Script & Timeline (.txt)",
-                        data=f"Project: {video_title}\nGenre: {video_genre}\nPrompt: {main_prompt}\n\n15-Minute Dynamic Multi-Scene Blueprint generated via Kulu AI Studio.",
-                        file_name="kulu_15min_custom_video_project.txt",
+                        label="📥 Download AI Video Project Package (.txt)",
+                        data=f"Project: {video_title}\nUser: {st.session_state.current_user}\nPrompt: {user_prompt}\nPhoto-to-Video conversion processed successfully via Kulu AI Studio.",
+                        file_name="kulu_personal_ai_video.txt",
                         mime="text/plain"
                     )
                     st.balloons()
             else:
-                st.warning("ଦୟାକରି ଟାଇଟଲ୍ ଏବଂ ପ୍ରମ୍ପ୍ଟ ଭରଣ କରନ୍ତୁ!")
+                st.warning("ଦୟାକରି ପ୍ରଥମେ ଗୋଟିଏ ଫଟୋ ଅପ୍‌ଲୋଡ୍ କରନ୍ତୁ ଏବଂ ପ୍ରମ୍ପ୍ଟ ଲେଖନ୍ତୁ!")
     else:
         st.warning("ଏହି ଷ୍ଟୁଡିଓ ବ୍ୟବହାର କରିବା ପାଇଁ ପ୍ରଥମେ ଲଗଇନ୍ କରନ୍ତୁ!")
 

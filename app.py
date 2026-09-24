@@ -9,6 +9,8 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = ""
 if "registered_users" not in st.session_state:
     st.session_state.registered_users = {}
 if "otp_sent" not in st.session_state:
@@ -21,8 +23,11 @@ if "temp_user_data" not in st.session_state:
 # Sidebar Navigation
 st.sidebar.title("🎬 Kulu AI Studio")
 
-if st.session_state.logged_in and st.session_state.is_admin:
-    menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "Home"])
+if st.session_state.logged_in:
+    if st.session_state.is_admin:
+        menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "AI Video Studio", "Home"])
+    else:
+        menu = st.sidebar.selectbox("Navigation", ["AI Video Studio", "Home"])
 else:
     menu = st.sidebar.selectbox("Navigation", ["Home", "Login", "Register"])
 
@@ -31,12 +36,14 @@ if menu == "Home":
     st.title("ସ୍ୱାଗତ କରୁଛୁ Kulu AI Video Studio କୁ! 🚀")
     st.write("ଏଠାରୁ ଆପଣ ଜବରଦସ୍ତ AI ଭିଡିଓ ଏବଂ କଣ୍ଟେଣ୍ଟ୍ ତିଆରି କରିପାରିବେ।")
     if st.session_state.logged_in:
+        st.success(f"ଆପଣ ଲଗଇନ୍ ଅଛନ୍ତି! ({st.session_state.current_user})")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.is_admin = False
+            st.session_state.current_user = ""
             st.rerun()
 
-# ----------------- REGISTER PAGE (School System Style Instant OTP) -----------------
+# ----------------- REGISTER PAGE -----------------
 elif menu == "Register":
     st.title("📝 New User Registration")
     
@@ -48,7 +55,6 @@ elif menu == "Register":
         
         if st.button("Generate & Get OTP"):
             if reg_email and reg_password and reg_name and reg_mobile:
-                # Generate instant secure 4-digit OTP (School Management System style)
                 otp = str(random.randint(1000, 9999))
                 st.session_state.generated_otp = otp
                 st.session_state.temp_user_data = {
@@ -63,10 +69,7 @@ elif menu == "Register":
                 st.warning("ସମସ୍ତ ଫିଲ୍ଡ ଭରଣ କରନ୍ତୁ!")
     else:
         st.success("✨ OTP Successfully Generated!")
-        
-        # Display OTP directly on screen securely (School Management System fallback style)
         st.markdown(f"### 🔑 Your Verification OTP: **`{st.session_state.generated_otp}`**")
-        st.info(f"Send this OTP to user **{st.session_state.temp_user_data.get('email')}** or verify below.")
         
         entered_otp = st.text_input("Enter 4-digit OTP", max_chars=4)
         
@@ -99,6 +102,7 @@ elif menu == "Login":
         if st.button("🚀 Master Admin Login"):
             st.session_state.logged_in = True
             st.session_state.is_admin = True
+            st.session_state.current_user = "admin@kulusutar.in"
             st.success("Master Admin ଲଗଇନ୍ ସଫଳ ହେଲା!")
             st.rerun()
     else:
@@ -109,12 +113,37 @@ elif menu == "Login":
                 if st.session_state.registered_users[u_email]["password"] == u_pass:
                     st.session_state.logged_in = True
                     st.session_state.is_admin = False
+                    st.session_state.current_user = u_email
                     st.success("ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
                     st.rerun()
                 else:
                     st.error("ଭୁଲ୍ ପାସୱାର୍ଡ!")
             else:
                 st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
+
+# ----------------- AI VIDEO STUDIO (For Logged In Users) -----------------
+elif menu == "AI Video Studio":
+    st.title("🎬 Kulu AI Video Generation Studio")
+    
+    if st.session_state.logged_in:
+        st.info(f"Welcome to Studio, **{st.session_state.current_user}**! Create your AI videos and scripts below.")
+        
+        video_title = st.text_input("Video Topic / Title (e.g., Motu Patlu Adventure, Luxury BMW Ride)")
+        video_style = st.selectbox("Select Video Style", ["Animation / Cartoon", "Cinematic 4K", "Social Media Reel / Short", "Documentary"])
+        prompt_desc = st.text_area("Describe your video script or prompt details:")
+        
+        if st.button("🚀 Generate AI Video Script & Concept"):
+            if video_title and prompt_desc:
+                st.success("✨ AI Video Script & Concept Generated Successfully!")
+                st.markdown("### 📋 Generated Video Details:")
+                st.write(f"**Title:** {video_title}")
+                st.write(f"**Style:** {video_style}")
+                st.markdown(f"**AI Storyboard Script:** \n> *Scene 1:* Introduction of {video_title} with dynamic camera angles...\n> *Scene 2:* Main action sequence based on prompt: '{prompt_desc}'...\n> *Scene 3:* Stunning visual effects and outro.")
+                st.balloons()
+            else:
+                st.warning("ଦୟାକରି ଭିଡିଓ ଟାଇଟଲ୍ ଏବଂ ଡିସକ୍ରିପ୍ସନ୍ ଲେଖନ୍ତୁ!")
+    else:
+        st.warning("ଏହି ଷ୍ଟୁଡିଓ ବ୍ୟବହାର କରିବା ପାଇଁ ପ୍ରଥମେ ଲଗଇନ୍ କରନ୍ତୁ!")
 
 # ----------------- ADMIN DASHBOARD -----------------
 elif menu == "Admin Dashboard":
@@ -125,6 +154,7 @@ elif menu == "Admin Dashboard":
         if st.button("Logout Admin"):
             st.session_state.logged_in = False
             st.session_state.is_admin = False
+            st.session_state.current_user = ""
             st.rerun()
             
         st.subheader("ସମସ୍ତ ରେଜିଷ୍ଟର୍ ହୋଇଥିବା ୟୁଜର୍ସଙ୍କ ତାଲିକା:")

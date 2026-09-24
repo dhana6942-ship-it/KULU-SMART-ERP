@@ -205,12 +205,6 @@ elif menu == "AI Master Video Studio":
                         st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown("---")
-                    st.download_button(
-                        label="📥 Download Project Script & Blueprint (.txt)",
-                        data=f"Project Title: {video_title}\nDuration: {duration_choice}\nCreator: {st.session_state.current_user}\nPrompt: {user_prompt}\nStatus: Rendered Successfully via Kulu AI Studio Pro.",
-                        file_name="kulu_ai_custom_project.txt",
-                        mime="text/plain"
-                    )
                     st.balloons()
             else:
                 st.warning("⚠️ ଦୟାକରି ପ୍ରଥମେ ଗୋଟିଏ ଫଟୋ ଅପ୍‌ଲୋଡ୍ କରନ୍ତୁ ଏବଂ ସମସ୍ତ ଫିଲ୍ଡ ଭରଣ କରନ୍ତୁ!")

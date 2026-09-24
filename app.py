@@ -22,7 +22,6 @@ if "temp_user_data" not in st.session_state:
 
 # Email Sending Function (OTP)
 def send_otp_email(receiver_email, otp_code):
-    # ଏଠାରେ ଆପଣ ନିଜର Gmail ଏବଂ App Password ଦେବେ
     sender_email = "your_email@gmail.com"
     sender_password = "your_app_password"
     
@@ -50,7 +49,7 @@ menu = st.sidebar.selectbox("Navigation", ["Home", "Login", "Register", "Admin D
 
 # ----------------- HOME PAGE -----------------
 if menu == "Home":
-    st.title("୍ୱାଗତ କରୁଛୁ Kulu AI Video Studio କୁ! 🚀")
+    st.title("ସ୍ୱାଗତ କରୁଛୁ Kulu AI Video Studio କୁ! 🚀")
     st.write("ଏଠାରୁ ଆପଣ ଜବରଦସ୍ତ AI ଭିଡିଓ ଏବଂ କଣ୍ଟେଣ୍ଟ୍ ତିଆରି କରିପାରିବେ।")
     if st.session_state.logged_in:
         st.success(f"ଆପଣ ଲଗଇନ୍ ଅଛନ୍ତି! (Role: {'Admin (Master)' if st.session_state.is_admin else 'User'})")
@@ -76,7 +75,6 @@ elif menu == "Register":
                     "password": reg_password
                 }
                 
-                # Try sending email
                 success = send_otp_email(reg_email, otp)
                 if success:
                     st.session_state.otp_sent = True
@@ -120,7 +118,7 @@ elif menu == "Login":
             if st.session_state.registered_users[login_email]["password"] == login_password:
                 st.session_state.logged_in = True
                 st.session_state.is_admin = False
-                st.success("सफଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
+                st.success("ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
                 st.rerun()
             else:
                 st.error("ଭୁଲ୍ ପାସୱାର୍ଡ!")
@@ -139,6 +137,6 @@ elif menu == "Admin Dashboard":
         else:
             st.info("ବର୍ତ୍ତମାନ କୌଣସି ନୂଆ ୟୁଜର୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହାନ୍ତି।")
     else:
-        st.warning("ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ଆପଣଙ୍କୁ Master Admin ଭାବରେ ଲଗଇନ୍ କରିବାକୁ ପଡ଼ିବସିବ!")
+        st.warning("ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ଆପଣଙ୍କୁ Master Admin ଭାବରେ ଲଗଇନ୍ କରିବାକୁ ପଡ଼ିବ!")
         st.text("Master Admin ID: admin@kulusutar.in")
         st.text("Master Admin Password: kulu12345")

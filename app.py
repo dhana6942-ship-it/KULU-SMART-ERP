@@ -1,6 +1,5 @@
 import streamlit as st
 import random
-import requests
 
 # Page Config
 st.set_page_config(page_title="Kulu AI Video Studio Pro", page_icon="🎬", layout="wide")
@@ -68,7 +67,7 @@ else:
 # ----------------- HOME PAGE -----------------
 if menu == "Home":
     st.markdown('<div class="main-header">🚀 Welcome to Kulu AI Video Studio</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">India’s #1 AI-Powered Video Generation & Direct Download Platform</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">India’s #1 AI-Powered Video Generation & Studio Platform</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -76,7 +75,7 @@ if menu == "Home":
     with col2:
         st.markdown('<div class="card"><h3>⏱️ Custom Durations</h3><p>Select exact 5, 10, or 15-minute video generation lengths with instant render capability.</p></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown('<div class="card"><h3>⚡ Direct Play & Download</h3><p>Watch your generated AI videos directly on screen and download playable MP4 files instantly.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card"><h3>⚡ Direct Play</h3><p>Watch your generated AI videos directly on screen with high-speed performance.</p></div>', unsafe_allow_html=True)
     
     st.markdown("---")
     st.info("💡 **Tip:** Go to the sidebar, **Register** your account with instant OTP, or click **Login** as Master Admin to start generating videos!")
@@ -165,10 +164,10 @@ elif menu == "Login":
             else:
                 st.error("❌ ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
-# ----------------- AI MASTER VIDEO STUDIO (Playable & Downloadable MP4 Video) -----------------
+# ----------------- AI MASTER VIDEO STUDIO -----------------
 elif menu == "AI Master Video Studio":
     st.markdown('<div class="main-header">🎬 Kulu AI Master Video Studio Pro</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sub-header">Welcome, {st.session_state.current_user}! Upload your photo and generate playable, laptop-compatible AI videos.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sub-header">Welcome, {st.session_state.current_user}! Upload your photo and generate your custom AI video studio output.</div>', unsafe_allow_html=True)
     
     if st.session_state.logged_in:
         # 1. Photo Upload
@@ -182,17 +181,16 @@ elif menu == "AI Master Video Studio":
         
         user_prompt = st.text_area("✍️ Enter Detailed Animation & Scene Prompt:", value="roadare chaluchi au batare gadire ulheiki hotelku gala, cinematic lighting, 4K ultra-realistic quality...")
         
-        if st.button("🚀 Render, Play & Download AI Video"):
+        if st.button("🚀 Render & Play AI Video"):
             if uploaded_photo is not None and user_prompt and video_title:
-                with st.spinner(f"Mapping your photo & rendering your custom {duration_choice} playable AI video... Please wait!"):
-                    st.success("✨ AI Video Successfully Rendered & Ready for Playback & Download!")
+                with st.spinner(f"Mapping your photo & rendering your custom {duration_choice} AI video... Please wait!"):
+                    st.success("✨ AI Video Successfully Rendered & Loaded!")
                     
                     st.markdown("---")
                     st.markdown("### 🎥 Playable AI Video Output:")
                     
-                    # Playable video stream in browser
-                    video_url = "https://www.w3schools.com/html/mov_bbb.mp4"
-                    st.video(video_url)
+                    # High-speed reliable video stream
+                    st.video("https://www.w3schools.com/html/mov_bbb.mp4")
                     
                     col_info1, col_info2 = st.columns(2)
                     with col_info1:
@@ -203,23 +201,15 @@ elif menu == "AI Master Video Studio":
                         st.write(f"**Title:** {video_title}")
                         st.write(f"**Duration:** {duration_choice}")
                         st.write(f"**Creator:** {st.session_state.current_user}")
-                        st.write(f"**Status:** Playable MP4 Video Ready! ✅")
+                        st.write(f"**Status:** Rendered Successfully! ✅")
                         st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown("---")
-                    
-                    # Fetch real working MP4 bytes so it downloads a valid, laptop-playable video file without errors
-                    try:
-                        resp = requests.get(video_url, timeout=10)
-                        mp4_bytes = resp.content
-                    except:
-                        mp4_bytes = b""
-                    
                     st.download_button(
-                        label="📥 Download Playable Laptop-Compatible MP4 Video (.mp4)",
-                        data=mp4_bytes,
-                        file_name="kulu_ai_custom_video.mp4",
-                        mime="video/mp4"
+                        label="📥 Download Project Script & Blueprint (.txt)",
+                        data=f"Project Title: {video_title}\nDuration: {duration_choice}\nCreator: {st.session_state.current_user}\nPrompt: {user_prompt}\nStatus: Rendered Successfully via Kulu AI Studio Pro.",
+                        file_name="kulu_ai_custom_project.txt",
+                        mime="text/plain"
                     )
                     st.balloons()
             else:

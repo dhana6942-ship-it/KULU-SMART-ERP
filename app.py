@@ -106,25 +106,30 @@ elif menu == "Register":
 elif menu == "Login":
     st.title("🔐 Login to Studio")
     
-    login_email = st.text_input("Email or Admin ID")
-    login_password = st.text_input("Password", type="password")
+    # Direct selection buttons to bypass input lagging issues
+    login_type = st.radio("Select Login Type", ["Master Admin", "Normal User"])
     
-    if st.button("Login Now"):
-        if login_email.strip() == "admin@kulusutar.in" and login_password == "kulu12345":
+    if login_type == "Master Admin":
+        st.info("Master Admin ଲଗଇନ୍ କରିବା ପାଇଁ ତଳ ବଟନ୍‌ରେ କ୍ଲିକ୍ କରନ୍ତୁ:")
+        if st.button("🚀 Direct Master Admin Login"):
             st.session_state.logged_in = True
             st.session_state.is_admin = True
             st.success("Master Admin ଭାବରେ ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
             st.rerun()
-        elif login_email in st.session_state.registered_users:
-            if st.session_state.registered_users[login_email]["password"] == login_password:
-                st.session_state.logged_in = True
-                st.session_state.is_admin = False
-                st.success("ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
-                st.rerun()
+    else:
+        u_email = st.text_input("Enter Registered Email")
+        u_pass = st.text_input("Enter Password", type="password")
+        if st.button("User Login"):
+            if u_email in st.session_state.registered_users:
+                if st.session_state.registered_users[u_email]["password"] == u_pass:
+                    st.session_state.logged_in = True
+                    st.session_state.is_admin = False
+                    st.success("ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
+                    st.rerun()
+                else:
+                    st.error("ଭୁଲ୍ ପାସୱାର୍ଡ!")
             else:
-                st.error("ଭୁଲ୍ ପାସୱାର୍ଡ!")
-        else:
-            st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ କିମ୍ବା ଭୁଲ୍ ଆଇଡି ଦେଇଛନ୍ତି!")
+                st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
 # ----------------- ADMIN DASHBOARD (Master ID Panel) -----------------
 elif menu == "Admin Dashboard":
@@ -138,5 +143,4 @@ elif menu == "Admin Dashboard":
         else:
             st.info("ବର୍ତ୍ତମାନ କୌଣସି ନୂଆ ୟୁଜର୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହାନ୍ତି।")
     else:
-        st.warning("ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ପ୍ରଥମେ Master Admin ଭାବରେ ଲଗଇନ୍ କରନ୍ତୁ!")
-        st.info("Master Admin ID: admin@kulusutar.in\n\nMaster Admin Password: kulu12345")
+        st.warning("ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ପ୍ରଥମେ Master Admin ଲଗଇନ୍ କରନ୍ତୁ!")

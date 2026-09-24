@@ -121,53 +121,53 @@ elif menu == "Login":
             else:
                 st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
-# ----------------- 15-MIN LONG VIDEO STUDIO -----------------
+# ----------------- 15-MIN LONG VIDEO STUDIO (Dynamic Prompt Based) -----------------
 elif menu == "15-Min Long Video Studio":
     st.title("⏱️ Kulu AI 15-Minute Long Video Creator")
     
     if st.session_state.logged_in:
         st.info(f"Welcome, **{st.session_state.current_user}**! Design your complete 15-minute cinematic video project below.")
         
-        video_title = st.text_input("Video Topic / Main Storyline", value="mutu bmw gadi chaleki jauchi")
-        video_genre = st.selectbox("Select Video Genre", ["Action & Adventure", "Luxury & Cinematic Travel", "Animation Story", "Mystery & Drama"])
-        main_prompt = st.text_area("Detailed Story Prompt (e.g., roadare chaluchi au batare gadire ulheiki hotelku gala...):", value="roadare chaluchi au batare gadire ulheiki hotelku gala")
+        video_title = st.text_input("Video Topic / Main Storyline", value="motu patlu dance")
+        video_genre = st.selectbox("Select Video Genre", ["Animation & Cartoon", "Action & Adventure", "Luxury & Cinematic Travel", "Mystery & Drama"])
+        main_prompt = st.text_area("Detailed Story Prompt:", value="Golden-hour lighting, realistic human movement, natural skin texture, highly detailed costumes, vibrant atmosphere, cinematic composition, 4K ultra-realistic quality...")
         
         if st.button("🎬 Generate 15-Minute Epic Video Blueprint"):
             if video_title and main_prompt:
-                with st.spinner("AI is crafting your 15-minute multi-scene master script... Please wait!"):
+                with st.spinner("AI is crafting your 15-minute multi-scene master script based on your prompt... Please wait!"):
                     st.success("✨ 15-Minute Video Masterplan Generated Successfully!")
                     
                     st.markdown(f"### 📌 Project: {video_title} ({video_genre})")
-                    st.write("**Total Duration:** 15 Minutes (10 Sequential Scenes)")
+                    st.write("**Total Duration:** 15 Minutes (10 Sequential Scenes tailored to your prompt)")
                     
-                    # Display 10 detailed scenes for 15 minutes length
                     st.markdown("---")
-                    st.markdown("### 🎞️ 15-Minute Scene-by-Scene Breakdown:")
+                    st.markdown(f"### 🎞️ 15-Minute Scene-by-Scene Breakdown for '{video_title}':")
                     
-                    scenes = [
-                        ("00:00 - 01:30", "Scene 1: Introduction & Starting the Journey (Car ignition, scenic highway views)"),
-                        ("01:30 - 03:00", "Scene 2: High-Speed Cruising & Speedometer close-ups based on: " + main_prompt),
-                        ("03:00 - 04:30", "Scene 3: Mid-way roadside stop and scenic surroundings exploration"),
-                        ("04:30 - 06:00", "Scene 4: Twisting mountain roads and advanced driving maneuvers"),
-                        ("06:00 - 07:30", "Scene 5: The unexpected turn - dropping by the destination hotel"),
-                        ("07:30 - 09:00", "Scene 6: Parking the luxury vehicle with cinematic camera angles"),
-                        ("09:00 - 10:30", "Scene 7: Stepping out of the car and entering the grand hotel lobby"),
-                        ("10:30 - 12:00", "Scene 8: Interacting with staff and relaxing in the lounge area"),
-                        ("12:00 - 13:30", "Scene 9: Evening view from the hotel balcony overlooking the highway"),
-                        ("13:30 - 15:00", "Scene 10: Conclusion, credits, and final cinematic outro shot")
+                    # Dynamically generate 10 scenes based on user's custom title & prompt
+                    time_slots = [
+                        ("00:00 - 01:30", f"Scene 1: Introduction of {video_title}. Setting up the environment with: {main_prompt[:60]}..."),
+                        ("01:30 - 03:00", f"Scene 2: Character entry and primary action sequence focusing on {video_title}."),
+                        ("03:00 - 04:30", f"Scene 3: Developing the core plot with vibrant atmosphere and detailed movements."),
+                        ("04:30 - 06:00", f"Scene 4: Mid-point twist and engaging interaction based on user prompt."),
+                        ("06:00 - 07:30", f"Scene 5: High-energy sequence showcasing cinematic composition and 4K quality."),
+                        ("07:30 - 09:00", f"Scene 6: Secondary characters or supporting elements joining the scene."),
+                        ("09:00 - 10:30", f"Scene 7: Dramatic buildup and emotional peak of the {video_title} story."),
+                        ("10:30 - 12:00", f"Scene 8: Resolution steps and transition towards the grand finale."),
+                        ("12:00 - 13:30", f"Scene 9: Climax performance reflecting the core theme: '{main_prompt[:50]}...'"),
+                        ("13:30 - 15:00", f"Scene 10: Grand conclusion, credits, and final cinematic outro shot.")
                     ]
                     
-                    for time_slot, desc in scenes:
+                    for time_slot, desc in time_slots:
                         st.markdown(f"⏱️ **[{time_slot}]** - {desc}")
                     
                     st.markdown("---")
-                    st.info("🎥 Previewing Master Render for 15-Min Long Video:")
+                    st.info("🎥 Previewing Master Render for Your Custom 15-Min Video:")
                     st.video("https://www.w3schools.com/html/mov_bbb.mp4")
                     
                     st.download_button(
                         label="📥 Download Complete 15-Min Script & Timeline (.txt)",
-                        data=f"Project: {video_title}\nGenre: {video_genre}\nPrompt: {main_prompt}\n\n15-Minute Multi-Scene Blueprint generated via Kulu AI Studio.",
-                        file_name="kulu_15min_video_project.txt",
+                        data=f"Project: {video_title}\nGenre: {video_genre}\nPrompt: {main_prompt}\n\n15-Minute Dynamic Multi-Scene Blueprint generated via Kulu AI Studio.",
+                        file_name="kulu_15min_custom_video_project.txt",
                         mime="text/plain"
                     )
                     st.balloons()

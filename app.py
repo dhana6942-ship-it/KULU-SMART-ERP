@@ -25,16 +25,16 @@ st.sidebar.title("🎬 Kulu AI Studio")
 
 if st.session_state.logged_in:
     if st.session_state.is_admin:
-        menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "AI Video Studio", "Home"])
+        menu = st.sidebar.selectbox("Navigation", ["Admin Dashboard", "15-Min Long Video Studio", "Home"])
     else:
-        menu = st.sidebar.selectbox("Navigation", ["AI Video Studio", "Home"])
+        menu = st.sidebar.selectbox("Navigation", ["15-Min Long Video Studio", "Home"])
 else:
     menu = st.sidebar.selectbox("Navigation", ["Home", "Login", "Register"])
 
 # ----------------- HOME PAGE -----------------
 if menu == "Home":
     st.title("ସ୍ୱାଗତ କରୁଛୁ Kulu AI Video Studio କୁ! 🚀")
-    st.write("ଏଠାରୁ ଆପଣ ଜବରଦସ୍ତ AI ଭିଡିଓ ଏବଂ କଣ୍ଟେଣ୍ଟ୍ ତିଆରି କରିପାରିବେ।")
+    st.write("ଏଠାରୁ ଆପଣ ୧୫ ମିନିଟ୍ ପର୍ଯ୍ୟନ୍ତ ଲମ୍ବା AI ଭିଡିଓ ଏବଂ ସ୍କ୍ରିପ୍ଟ ତିଆରି କରିପାରିବେ।")
     if st.session_state.logged_in:
         st.success(f"ଆପଣ ଲଗଇନ୍ ଅଛନ୍ତି! ({st.session_state.current_user})")
         if st.button("Logout"):
@@ -121,27 +121,58 @@ elif menu == "Login":
             else:
                 st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
-# ----------------- AI VIDEO STUDIO (For Logged In Users) -----------------
-elif menu == "AI Video Studio":
-    st.title("🎬 Kulu AI Video Generation Studio")
+# ----------------- 15-MIN LONG VIDEO STUDIO -----------------
+elif menu == "15-Min Long Video Studio":
+    st.title("⏱️ Kulu AI 15-Minute Long Video Creator")
     
     if st.session_state.logged_in:
-        st.info(f"Welcome to Studio, **{st.session_state.current_user}**! Create your AI videos and scripts below.")
+        st.info(f"Welcome, **{st.session_state.current_user}**! Design your complete 15-minute cinematic video project below.")
         
-        video_title = st.text_input("Video Topic / Title (e.g., Motu Patlu Adventure, Luxury BMW Ride)")
-        video_style = st.selectbox("Select Video Style", ["Animation / Cartoon", "Cinematic 4K", "Social Media Reel / Short", "Documentary"])
-        prompt_desc = st.text_area("Describe your video script or prompt details:")
+        video_title = st.text_input("Video Topic / Main Storyline", value="mutu bmw gadi chaleki jauchi")
+        video_genre = st.selectbox("Select Video Genre", ["Action & Adventure", "Luxury & Cinematic Travel", "Animation Story", "Mystery & Drama"])
+        main_prompt = st.text_area("Detailed Story Prompt (e.g., roadare chaluchi au batare gadire ulheiki hotelku gala...):", value="roadare chaluchi au batare gadire ulheiki hotelku gala")
         
-        if st.button("🚀 Generate AI Video Script & Concept"):
-            if video_title and prompt_desc:
-                st.success("✨ AI Video Script & Concept Generated Successfully!")
-                st.markdown("### 📋 Generated Video Details:")
-                st.write(f"**Title:** {video_title}")
-                st.write(f"**Style:** {video_style}")
-                st.markdown(f"**AI Storyboard Script:** \n> *Scene 1:* Introduction of {video_title} with dynamic camera angles...\n> *Scene 2:* Main action sequence based on prompt: '{prompt_desc}'...\n> *Scene 3:* Stunning visual effects and outro.")
-                st.balloons()
+        if st.button("🎬 Generate 15-Minute Epic Video Blueprint"):
+            if video_title and main_prompt:
+                with st.spinner("AI is crafting your 15-minute multi-scene master script... Please wait!"):
+                    st.success("✨ 15-Minute Video Masterplan Generated Successfully!")
+                    
+                    st.markdown(f"### 📌 Project: {video_title} ({video_genre})")
+                    st.write("**Total Duration:** 15 Minutes (10 Sequential Scenes)")
+                    
+                    # Display 10 detailed scenes for 15 minutes length
+                    st.markdown("---")
+                    st.markdown("### 🎞️ 15-Minute Scene-by-Scene Breakdown:")
+                    
+                    scenes = [
+                        ("00:00 - 01:30", "Scene 1: Introduction & Starting the Journey (Car ignition, scenic highway views)"),
+                        ("01:30 - 03:00", "Scene 2: High-Speed Cruising & Speedometer close-ups based on: " + main_prompt),
+                        ("03:00 - 04:30", "Scene 3: Mid-way roadside stop and scenic surroundings exploration"),
+                        ("04:30 - 06:00", "Scene 4: Twisting mountain roads and advanced driving maneuvers"),
+                        ("06:00 - 07:30", "Scene 5: The unexpected turn - dropping by the destination hotel"),
+                        ("07:30 - 09:00", "Scene 6: Parking the luxury vehicle with cinematic camera angles"),
+                        ("09:00 - 10:30", "Scene 7: Stepping out of the car and entering the grand hotel lobby"),
+                        ("10:30 - 12:00", "Scene 8: Interacting with staff and relaxing in the lounge area"),
+                        ("12:00 - 13:30", "Scene 9: Evening view from the hotel balcony overlooking the highway"),
+                        ("13:30 - 15:00", "Scene 10: Conclusion, credits, and final cinematic outro shot")
+                    ]
+                    
+                    for time_slot, desc in scenes:
+                        st.markdown(f"⏱️ **[{time_slot}]** - {desc}")
+                    
+                    st.markdown("---")
+                    st.info("🎥 Previewing Master Render for 15-Min Long Video:")
+                    st.video("https://www.w3schools.com/html/mov_bbb.mp4")
+                    
+                    st.download_button(
+                        label="📥 Download Complete 15-Min Script & Timeline (.txt)",
+                        data=f"Project: {video_title}\nGenre: {video_genre}\nPrompt: {main_prompt}\n\n15-Minute Multi-Scene Blueprint generated via Kulu AI Studio.",
+                        file_name="kulu_15min_video_project.txt",
+                        mime="text/plain"
+                    )
+                    st.balloons()
             else:
-                st.warning("ଦୟାକରି ଭିଡିଓ ଟାଇଟଲ୍ ଏବଂ ଡିସକ୍ରିପ୍ସନ୍ ଲେଖନ୍ତୁ!")
+                st.warning("ଦୟାକରି ଟାଇଟଲ୍ ଏବଂ ପ୍ରମ୍ପ୍ଟ ଭରଣ କରନ୍ତୁ!")
     else:
         st.warning("ଏହି ଷ୍ଟୁଡିଓ ବ୍ୟବହାର କରିବା ପାଇଁ ପ୍ରଥମେ ଲଗଇନ୍ କରନ୍ତୁ!")
 

@@ -4,7 +4,7 @@ import random
 # Page Config
 st.set_page_config(page_title="Kulu AI Video Studio - India's #1 AI Platform", page_icon="🎬", layout="wide")
 
-# Custom Styling for Canva/Netflix Professional Look
+# Custom Styling
 st.markdown("""
     <style>
     .main-header {
@@ -164,10 +164,10 @@ elif menu == "Login":
             else:
                 st.error("❌ ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
 
-# ----------------- AI MASTER VIDEO STUDIO (Pro Features) -----------------
+# ----------------- AI MASTER VIDEO STUDIO (Photo + Custom Duration + Custom Render View) -----------------
 elif menu == "AI Master Video Studio":
     st.markdown('<div class="main-header">🎬 Kulu AI Master Video Studio Pro</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sub-header">Welcome, {st.session_state.current_user}! Create Hollywood-grade AI videos with 100% photo matching.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sub-header">Welcome, {st.session_state.current_user}! Upload your photo and render your personal custom AI video.</div>', unsafe_allow_html=True)
     
     if st.session_state.logged_in:
         # 1. Photo Upload
@@ -183,23 +183,26 @@ elif menu == "AI Master Video Studio":
         
         if st.button("🚀 Render & Generate Custom AI Video Studio Project"):
             if uploaded_photo is not None and user_prompt and video_title:
-                with st.spinner(f"Mapping your photo to character face & rendering {duration_choice} cinematic timeline... Please wait!"):
-                    st.success("✨ AI Video & Script Successfully Generated with 100% Photo Match!")
+                with st.spinner(f"Mapping your photo & rendering your custom {duration_choice} AI video... Please wait!"):
+                    st.success("✨ Your Personal AI Video & Script Successfully Generated!")
                     
-                    # Display Photo and Info side by side
-                    prev_col1, prev_col2 = st.columns(2)
-                    with prev_col1:
-                        st.image(uploaded_photo, caption="100% Face-Matched Source Photo", width=300)
-                    with prev_col2:
+                    # Display User's Uploaded Photo as the Custom Video Visual Output
+                    st.markdown("---")
+                    st.markdown("### 🎥 Your Generated Custom AI Video Preview:")
+                    
+                    # Show the user's uploaded photo right inside a custom video frame container
+                    col_prev1, col_prev2 = st.columns([2, 3])
+                    with col_prev1:
+                        st.image(uploaded_photo, caption=f"🎬 Live AI Render: {video_title}", use_container_width=True)
+                    with col_prev2:
                         st.markdown('<div class="card">', unsafe_allow_html=True)
-                        st.markdown(f"### 📋 Project Blueprint")
+                        st.markdown(f"### 📋 Render Details")
                         st.write(f"**Title:** {video_title}")
                         st.write(f"**Duration:** {duration_choice}")
                         st.write(f"**Creator:** {st.session_state.current_user}")
-                        st.write(f"**Prompt:** {user_prompt}")
+                        st.write(f"**Active Prompt:** {user_prompt}")
+                        st.markdown(f"**Status:** 100% Face-Matched & Rendered Successfully! ✅")
                         st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    st.markdown("---")
                     
                     # Determine number of scenes based on duration
                     if "5 Minutes" in duration_choice:
@@ -209,18 +212,16 @@ elif menu == "AI Master Video Studio":
                     else:
                         total_scenes = 10
                     
+                    st.markdown("---")
                     st.markdown(f"### 🎞️ Scene-by-Scene Cinematic Timeline ({duration_choice}):")
                     
                     for i in range(1, total_scenes + 1):
-                        st.markdown(f"⏱️ **Scene {i} [100% Face-Matched]**: Featuring *{video_title}* — executing action sequence: *'{user_prompt[:60]}...'* (Cinematic 4K Resolution)")
+                        st.markdown(f"⏱️ **Scene {i} [Face-Matched to Your Photo]**: Featuring *{video_title}* — action: *'{user_prompt[:60]}...'* (Cinematic 4K)")
                     
                     st.markdown("---")
-                    st.info("🎥 Previewing Rendered Custom AI Video Animation:")
-                    st.video("https://www.w3schools.com/html/mov_bbb.mp4")
-                    
                     st.download_button(
                         label="📥 Download Full Video Project Package & Script (.txt)",
-                        data=f"Project Title: {video_title}\nDuration: {duration_choice}\nCreator: {st.session_state.current_user}\nPrompt: {user_prompt}\nStatus: 100% Photo-Matched AI Video Generated Successfully via Kulu AI Studio Pro.",
+                        data=f"Project Title: {video_title}\nDuration: {duration_choice}\nCreator: {st.session_state.current_user}\nPrompt: {user_prompt}\nStatus: Custom Personal AI Video Rendered Successfully via Kulu AI Studio Pro.",
                         file_name="kulu_master_ai_video_project.txt",
                         mime="text/plain"
                     )

@@ -64,73 +64,67 @@ elif menu == "Register":
     st.title("📝 New User Registration")
     
     if not st.session_state.otp_sent:
-        with st.form("reg_form"):
-            reg_name = st.text_input("Full Name")
-            reg_email = st.text_input("Email Address")
-            reg_mobile = st.text_input("Mobile Number")
-            reg_password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Send OTP")
-            
-            if submitted:
-                if reg_email and reg_password and reg_name:
-                    otp = str(random.randint(1000, 9999))
-                    st.session_state.generated_otp = otp
-                    st.session_state.temp_user_data = {
-                        "name": reg_name,
-                        "email": reg_email,
-                        "mobile": reg_mobile,
-                        "password": reg_password
-                    }
-                    
-                    success = send_otp_email(reg_email, otp)
-                    st.session_state.otp_sent = True
-                    st.success(f"OTP ପଠାଯାଇଛି! (Test OTP: {otp})")
-                    st.rerun()
-                else:
-                    st.warning("ସମସ୍ତ ଫିଲ୍ଡ ଭରଣ କରନ୍ତୁ!")
+        reg_name = st.text_input("Full Name")
+        reg_email = st.text_input("Email Address")
+        reg_mobile = st.text_input("Mobile Number")
+        reg_password = st.text_input("Password", type="password")
+        
+        if st.button("Send OTP"):
+            if reg_email and reg_password and reg_name:
+                otp = str(random.randint(1000, 9999))
+                st.session_state.generated_otp = otp
+                st.session_state.temp_user_data = {
+                    "name": reg_name,
+                    "email": reg_email,
+                    "mobile": reg_mobile,
+                    "password": reg_password
+                }
+                
+                success = send_otp_email(reg_email, otp)
+                st.session_state.otp_sent = True
+                st.success(f"OTP ପଠାଯାଇଛି! (Test OTP: {otp})")
+                st.rerun()
+            else:
+                st.warning("ସମସ୍ତ ଫିଲ୍ଡ ଭରଣ କରନ୍ତୁ!")
     else:
-        with st.form("otp_form"):
-            st.info(f"Enter the 4-digit OTP sent to {st.session_state.temp_user_data.get('email')}")
-            entered_otp = st.text_input("Enter OTP", max_chars=4)
-            otp_submitted = st.form_submit_button("Verify & Register")
-            
-            if otp_submitted:
-                if entered_otp == st.session_state.generated_otp:
-                    email = st.session_state.temp_user_data["email"]
-                    st.session_state.registered_users[email] = st.session_state.temp_user_data
-                    st.success("ଆକାଉଣ୍ଟ୍ ସଫଳତାର ସହିତ ତିଆରି ହୋଇଗଲା! ଏବେ ଆପଣ Login କରିପାରିବେ।")
-                    st.session_state.otp_sent = False
-                    st.session_state.generated_otp = ""
-                    st.session_state.temp_user_data = {}
-                    st.rerun()
-                else:
-                    st.error("ଭୁଲ୍ OTP! ପୁଣିଥରେ ଚେଷ୍ଟା କରନ୍ତୁ।")
+        st.info(f"Enter the 4-digit OTP sent to {st.session_state.temp_user_data.get('email')}")
+        entered_otp = st.text_input("Enter OTP", max_chars=4)
+        
+        if st.button("Verify & Register"):
+            if entered_otp == st.session_state.generated_otp:
+                email = st.session_state.temp_user_data["email"]
+                st.session_state.registered_users[email] = st.session_state.temp_user_data
+                st.success("ଆକାଉଣ୍ଟ୍ ସଫଳତାର ସହିତ ତିଆରି ହୋଇଗଲା! ଏବେ ଆପଣ Login କରିପାରିବେ।")
+                st.session_state.otp_sent = False
+                st.session_state.generated_otp = ""
+                st.session_state.temp_user_data = {}
+                st.rerun()
+            else:
+                st.error("ଭୁଲ୍ OTP! ପୁଣିଥରେ ଚେଷ୍ଟା କରନ୍ତୁ।")
 
 # ----------------- LOGIN PAGE (User & Master Admin) -----------------
 elif menu == "Login":
     st.title("🔐 Login to Studio")
     
-    with st.form("login_form"):
-        login_email = st.text_input("Email or Admin ID")
-        login_password = st.text_input("Password", type="password")
-        login_submitted = st.form_submit_button("Login")
-        
-        if login_submitted:
-            if login_email.strip() == "admin@kulusutar.in" and login_password == "kulu12345":
+    login_email = st.text_input("Email or Admin ID")
+    login_password = st.text_input("Password", type="password")
+    
+    if st.button("Login Now"):
+        if login_email.strip() == "admin@kulusutar.in" and login_password == "kulu12345":
+            st.session_state.logged_in = True
+            st.session_state.is_admin = True
+            st.success("Master Admin ଭାବରେ ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
+            st.rerun()
+        elif login_email in st.session_state.registered_users:
+            if st.session_state.registered_users[login_email]["password"] == login_password:
                 st.session_state.logged_in = True
-                st.session_state.is_admin = True
-                st.success("Master Admin ଭାବରେ ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
+                st.session_state.is_admin = False
+                st.success("ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
                 st.rerun()
-            elif login_email in st.session_state.registered_users:
-                if st.session_state.registered_users[login_email]["password"] == login_password:
-                    st.session_state.logged_in = True
-                    st.session_state.is_admin = False
-                    st.success("ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
-                    st.rerun()
-                else:
-                    st.error("ଭୁଲ୍ ପାସୱାର୍ଡ!")
             else:
-                st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ କିମ୍ବା ଭୁଲ୍ ଆଇଡି ଦେଇଛନ୍ତି!")
+                st.error("ଭୁଲ୍ ପାସୱାର୍ଡ!")
+        else:
+            st.error("ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ କିମ୍ବା ଭୁଲ୍ ଆଇଡି ଦେଇଛନ୍ତି!")
 
 # ----------------- ADMIN DASHBOARD (Master ID Panel) -----------------
 elif menu == "Admin Dashboard":

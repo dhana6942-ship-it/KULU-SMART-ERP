@@ -281,29 +281,38 @@ if st.session_state.logged_in:
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     
                     if stock_items:
-                        item_dict = {f"{item[1]} (Stock: {item[3]}) - ₹{item[2]}": item for item in stock_items}
+                        item_dict = {f"{item[1]} (Stock: {item[3]}) - Default: ₹{item[2]}": item for item in stock_items}
                         sel_item = st.selectbox("Select Product to Dispatch", list(item_dict.keys()), key="w_sel")
                         
-                        col1, col2 = st.columns(2)
-                        with col1: b_qty = st.number_input("Bulk Quantity", min_value=1, value=1, key="w_bqty")
-                        with col2: is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)", value=True, key="w_gstchk")
-                            
                         item_data = item_dict[sel_item]
-                        i_id, i_name, i_sprice, i_stock, i_gst, i_pprice = item_data
+                        i_id, i_name, default_sprice, i_stock, default_gst, i_pprice = item_data
                         
-                        base_total = i_sprice * b_qty
+                        # 🔴 NEW FEATURE: MANUAL CUSTOM PRICE & GST INPUT 🔴
+                        st.write("✏️ **Adjust Billing Details for this Transaction:**")
+                        col1, col2, col3 = st.columns(3)
+                        with col1: 
+                            b_qty = st.number_input("Bulk Quantity", min_value=1, max_value=i_stock, value=1, key="w_bqty")
+                        with col2: 
+                            manual_price = st.number_input("Base Price per Unit (₹)", min_value=0.0, value=float(default_sprice), step=5.0, key="w_cprice")
+                        with col3: 
+                            manual_gst = st.number_input("Custom GST Rate (%)", min_value=0.0, value=float(default_gst), step=1.0, key="w_cgst")
+                            
+                        is_gst_bill = st.checkbox("Apply GST to Bill", value=True, key="w_gstchk")
+                        
+                        # Live Auto-Calculate based on custom inputs
+                        base_total = manual_price * b_qty
                         total_cost = i_pprice * b_qty
                         
                         st.markdown("---")
                         if is_gst_bill:
-                            tax_amount = (base_total * i_gst) / 100
+                            tax_amount = (base_total * manual_gst) / 100
                             final_price = base_total + tax_amount
-                            st.success(f"💰 **Live Auto-Calculate:** ₹ {base_total} (Base) + ₹ {tax_amount:.2f} ({i_gst}% GST) = **₹ {final_price:.2f}**")
+                            st.success(f"💰 **Live Auto-Calculate:** ₹ {base_total:.2f} (Base) + ₹ {tax_amount:.2f} ({manual_gst}% GST) = **₹ {final_price:.2f}**")
                         else:
                             final_price = base_total
                             st.info(f"💰 **Live Auto-Calculate:** **₹ {final_price:.2f}** (No GST applied)")
                             
-                        profit = final_price - total_cost
+                        profit = base_total - total_cost
 
                         if st.button("🚛 Generate Wholesale Bill & Dispatch", use_container_width=True):
                             if b_qty <= i_stock:
@@ -404,29 +413,38 @@ if st.session_state.logged_in:
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     
                     if stock_items:
-                        item_dict = {f"{item[1]} (Stock: {item[3]}) - ₹{item[2]}": item for item in stock_items}
+                        item_dict = {f"{item[1]} (Stock: {item[3]}) - Default: ₹{item[2]}": item for item in stock_items}
                         sel_item = st.selectbox("Select Product for Customer", list(item_dict.keys()), key="s_sel")
                         
-                        col1, col2 = st.columns(2)
-                        with col1: b_qty = st.number_input("Quantity", min_value=1, value=1, key="s_bqty")
-                        with col2: is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)", value=True, key="s_gstchk")
-                            
                         item_data = item_dict[sel_item]
-                        i_id, i_name, i_sprice, i_stock, i_gst, i_pprice = item_data
+                        i_id, i_name, default_sprice, i_stock, default_gst, i_pprice = item_data
                         
-                        base_total = i_sprice * b_qty
+                        # 🔴 NEW FEATURE: MANUAL CUSTOM PRICE & GST INPUT 🔴
+                        st.write("✏️ **Adjust Billing Details for this Transaction:**")
+                        col1, col2, col3 = st.columns(3)
+                        with col1: 
+                            b_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1, key="s_bqty")
+                        with col2: 
+                            manual_price = st.number_input("Base Price per Unit (₹)", min_value=0.0, value=float(default_sprice), step=5.0, key="s_cprice")
+                        with col3: 
+                            manual_gst = st.number_input("Custom GST Rate (%)", min_value=0.0, value=float(default_gst), step=1.0, key="s_cgst")
+                            
+                        is_gst_bill = st.checkbox("Apply GST to Bill", value=True, key="s_gstchk")
+                        
+                        # Live Auto-Calculate based on custom inputs
+                        base_total = manual_price * b_qty
                         total_cost = i_pprice * b_qty
                         
                         st.markdown("---")
                         if is_gst_bill:
-                            tax_amount = (base_total * i_gst) / 100
+                            tax_amount = (base_total * manual_gst) / 100
                             final_price = base_total + tax_amount
-                            st.success(f"💰 **Live Auto-Calculate:** ₹ {base_total} (Base) + ₹ {tax_amount:.2f} ({i_gst}% GST) = **₹ {final_price:.2f}**")
+                            st.success(f"💰 **Live Auto-Calculate:** ₹ {base_total:.2f} (Base) + ₹ {tax_amount:.2f} ({manual_gst}% GST) = **₹ {final_price:.2f}**")
                         else:
                             final_price = base_total
                             st.info(f"💰 **Live Auto-Calculate:** **₹ {final_price:.2f}** (No GST applied)")
                             
-                        profit = final_price - total_cost
+                        profit = base_total - total_cost
 
                         if st.button("🧾 Generate Retail Bill", use_container_width=True):
                             if b_qty <= i_stock:

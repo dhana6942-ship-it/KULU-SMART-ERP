@@ -5,6 +5,30 @@ import random
 import string
 from datetime import date
 import streamlit.components.v1 as components
+import smtplib
+from email.mime.text import MIMEText
+
+# ==========================================
+# 0. LIVE EMAIL OTP SYSTEM
+# ==========================================
+def send_real_email(receiver_email, otp):
+    sender_email = "dhana6942@gmail.com"
+    # Removing spaces from the app password for it to work properly
+    app_password = "zvhddripvstjwyef" 
+    
+    msg = MIMEText(f"ନମସ୍କାର (Hello),\n\nଆପଣଙ୍କ Kulu Smart ERP ର ସିକ୍ୟୁରିଟି OTP ହେଉଛି: {otp}\n\nଦୟାକରି ଏହାକୁ କାହା ସହିତ ସେୟାର କରନ୍ତୁ ନାହିଁ।\n(Please do not share this OTP with anyone.)\n\nଧନ୍ୟବାଦ,\nKulu Smart ERP Team")
+    msg['Subject'] = 'Kulu ERP - Security OTP'
+    msg['From'] = f"Kulu Smart ERP <{sender_email}>"
+    msg['To'] = receiver_email
+    
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(sender_email, app_password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        return False
 
 # ==========================================
 # 1. DATABASE SETUP
@@ -156,7 +180,75 @@ if st.session_state.logged_in:
         # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             st.title("👑 Super Admin Control Panel")
-            st.info("Please use Wholesaler or Retail Shop login to test Barcode & Print Features.")
+            tab1, tab2 = st.tabs(["🛡️ Approvals", "🔐 Update Admin Profile"])
+            
+            with tab1:
+                users = run_query("SELECT id, name, email, role, package_type, utr_no, paid_amount, license_key, approved FROM users WHERE role != 'SuperAdmin' AND is_deleted=0")
+                if users:
+                    df = pd.DataFrame(users, columns=["ID", "Name", "Email", "Role", "Package", "UTR No", "Amount Paid", "License Key", "Status"])
+                    df["Status"] = df["Status"].apply(lambda x: "Active" if x==1 else "Pending")
+                    st.dataframe(df, use_container_width=True)
+                    c1, c2, c3 = st.columns(3)
+                    with c1: app_email = st.selectbox("Select User Email", df['Email'])
+                    with c2:
+                        if st.button("✅ Approve & Generate License"):
+                            run_query("UPDATE users SET approved=1, payment_status='Paid', license_key=? WHERE email=?", (generate_license(), app_email))
+                            st.success("Approved!")
+                            st.rerun()
+                    with c3:
+                        if st.button("🗑️ Suspend User"):
+                            run_query("UPDATE users SET is_deleted=1 WHERE email=?", (app_email,))
+                            st.rerun()
+                else: st.info("No active clients.")
+            
+            # --- REAL EMAIL OTP FOR ADMIN PROFILE UPDATE ---
+            with tab2:
+                st.subheader("🔐 Update Admin ID & Password")
+                curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
+                if "admin_update_step" not in st.session_state: st.session_state.admin_update_step = 1
+                
+                if st.session_state.admin_update_step == 1:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_email = st.text_input("New Email ID", value=curr_admin[0])
+                        new_mobile = st.text_input("New Mobile No.", value=curr_admin[1] if curr_admin[1] else "")
+                    with col2:
+                        new_pass = st.text_input("New Password", type="password", value=curr_admin[2])
+                        
+                    if st.button("📩 Send Real OTP to Confirm"):
+                        st.session_state.admin_otp = str(random.randint(100000, 999999))
+                        st.session_state.update_data = {"email": new_email, "mobile": new_mobile, "pass": new_pass}
+                        
+                        with st.spinner("Sending OTP to your email... Please wait."):
+                            success = send_real_email(st.session_state.user_email, st.session_state.admin_otp)
+                            
+                        if success:
+                            st.session_state.admin_update_step = 2
+                            st.rerun()
+                        else:
+                            st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ ବା ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
+                        
+                elif st.session_state.admin_update_step == 2:
+                    st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.user_email} କୁ ପଠାଯାଇଛି! (Check your Gmail Inbox/Spam)")
+                    e_otp = st.text_input("Enter 6-digit OTP")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ Verify & Save Changes"):
+                            if e_otp == st.session_state.admin_otp:
+                                d = st.session_state.update_data
+                                try:
+                                    run_query("UPDATE users SET email=?, mobile=?, password=? WHERE email=?", 
+                                              (d['email'], d['mobile'], d['pass'], st.session_state.user_email))
+                                    st.success("🎉 Profile & Password Updated Successfully!")
+                                    st.session_state.user_email = d['email']
+                                    st.session_state.admin_update_step = 1
+                                    st.rerun()
+                                except sqlite3.IntegrityError: st.error("❌ Email ID already registered!")
+                            else: st.error("❌ ଭୁଲ୍ OTP!")
+                    with c2:
+                        if st.button("🚫 Cancel"):
+                            st.session_state.admin_update_step = 1
+                            st.rerun()
 
         # ---------------- WHOLESALER & RETAIL SHOP ----------------
         else:
@@ -171,15 +263,11 @@ if st.session_state.logged_in:
             if my_data[0] is None:
                 st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
             else:
-                # ==========================================
-                # TABS DEFINITION BASED ON ROLE
-                # ==========================================
                 if st.session_state.user_role == "Wholesaler":
                     tab_dash, tab_purch, tab_sales, tab_net, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "🏪 Retailer Network Stock", "📄 Balance Sheet & P&L"])
                 else:
                     tab_dash, tab_purch, tab_sales, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "📄 Balance Sheet & P&L"])
                 
-                # --- TAB 1: DASHBOARD ---
                 with tab_dash:
                     st.subheader("Financial Summary (Today)")
                     today_str = str(date.today())
@@ -192,7 +280,6 @@ if st.session_state.logged_in:
                     c2.metric("Today's Total Purchases", f"₹ {purch_data if purch_data else 0.0}")
                     c3.metric("Today's Net Profit", f"₹ {profit_data if profit_data else 0.0}")
 
-                # --- TAB 2: PURCHASE ENTRY ---
                 with tab_purch:
                     st.subheader("📥 Purchase Entry (Kharedi & Stock In)")
                     col1, col2, col3 = st.columns(3)
@@ -230,7 +317,6 @@ if st.session_state.logged_in:
                             st.rerun()
                         else: st.error("Please enter valid Product Name and Prices.")
 
-                # --- TAB 3: SALES ENTRY ---
                 with tab_sales:
                     st.subheader("🧾 Sales Entry (POS Billing)")
                     scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="s_scan")
@@ -288,32 +374,23 @@ if st.session_state.logged_in:
                         st.subheader("🖨️ Portable Printer Bill Preview (58mm/80mm)")
                         components.html(st.session_state.print_receipt, height=500)
 
-                # --- 🔴 NEW: TAB FOR WHOLESALER TO TRACK RETAILER STOCK 🔴 ---
                 if st.session_state.user_role == "Wholesaler":
                     with tab_net:
                         st.subheader("🏪 Live Retailer Stock Tracking")
-                        st.write("View current stock levels across all registered Retail Shops.")
-                        
                         r_stocks = run_query("SELECT u.name, u.email, i.item_name, i.stock, i.selling_price FROM inventory i JOIN users u ON i.shop_email = u.email WHERE u.role = 'Shop' AND i.stock > 0")
-                        
                         if r_stocks:
                             df_rs = pd.DataFrame(r_stocks, columns=["Retail Shop Name", "Shop Email", "Product Name", "Available Stock", "Retail Price (₹)"])
-                            
                             c1, c2 = st.columns(2)
                             with c1:
                                 shop_list = ["All Shops"] + list(df_rs["Retail Shop Name"].unique())
                                 shop_filter = st.selectbox("🔍 Filter by Retail Shop Name", shop_list)
                             
-                            if shop_filter != "All Shops":
-                                filtered_df = df_rs[df_rs["Retail Shop Name"] == shop_filter]
-                            else:
-                                filtered_df = df_rs
+                            if shop_filter != "All Shops": filtered_df = df_rs[df_rs["Retail Shop Name"] == shop_filter]
+                            else: filtered_df = df_rs
                                 
                             st.dataframe(filtered_df, use_container_width=True)
-                        else:
-                            st.info("No stock data available from retail shops yet.")
+                        else: st.info("No stock data available from retail shops yet.")
 
-                # --- TAB 4/5: REPORTS ---
                 with tab_rep:
                     st.subheader("📄 Lifetime Balance Sheet & P&L")
                     t_sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND trans_type='Sale'", (st.session_state.user_email,))
@@ -332,7 +409,6 @@ if st.session_state.logged_in:
                     st.markdown(f"### Final Net Profit: ₹ {net_profit:.2f}")
 
 else:
-    # --- LOGGED OUT VIEWS (PREMIUM DESIGN) ---
     if st.session_state.current_page == "Home Ground":
         st.markdown("""
         <div class="hero-container">
@@ -436,7 +512,42 @@ else:
                     except: st.error("❌ Email already registered.")
                 else: st.warning("Fill all fields.")
 
+    # --- REAL EMAIL OTP FOR FORGOT PASSWORD ---
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🔑 Reset Password (OTP)")
-        st.info("System Ready.")
+        if "forgot_step" not in st.session_state: st.session_state.forgot_step = 1
+        
+        if st.session_state.forgot_step == 1:
+            f_email = st.text_input("Enter your Registered Email")
+            if st.button("Send Real OTP to Email"):
+                if run_query("SELECT email FROM users WHERE email=?", (f_email,)):
+                    st.session_state.forgot_otp = str(random.randint(100000, 999999))
+                    st.session_state.forgot_email = f_email
+                    
+                    with st.spinner("Sending OTP to your email... Please wait."):
+                        success = send_real_email(f_email, st.session_state.forgot_otp)
+                        
+                    if success:
+                        st.session_state.forgot_step = 2
+                        st.rerun()
+                    else:
+                        st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ କିମ୍ବା ଆପ୍ ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
+                else: st.error("❌ ଏହି Email ଆମ ସିଷ୍ଟମ୍ ରେ ନାହିଁ।")
+                    
+        elif st.session_state.forgot_step == 2:
+            st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.forgot_email} କୁ ପଠାଯାଇଛି! (Check Inbox/Spam)")
+            e_otp = st.text_input("Enter 6-digit OTP")
+            if st.button("Verify OTP"):
+                if e_otp == st.session_state.forgot_otp:
+                    st.session_state.forgot_step = 3
+                    st.rerun()
+                else:
+                    st.error("❌ ଭୁଲ୍ OTP!")
+                    
+        elif st.session_state.forgot_step == 3:
+            new_pass = st.text_input("Enter New Password", type="password")
+            if st.button("Update Password") and new_pass:
+                run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
+                st.success("✅ Password updated! Click 'Back to Home' to Login.")
+                st.session_state.forgot_step = 1

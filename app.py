@@ -120,38 +120,14 @@ st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
 st.markdown("""
     <style>
-    /* PREMIUM HOME GROUND CSS */
-    .hero-container {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        padding: 50px 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 40px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    }
+    .hero-container { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 50px 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
     .hero-title { font-size: 48px; font-weight: 800; margin-bottom: 10px; letter-spacing: 1px; }
     .hero-subtitle { font-size: 20px; font-weight: 300; opacity: 0.9; }
-
-    .feature-card {
-        background: #ffffff;
-        padding: 30px 20px;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        border: 1px solid #eaeaea;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        margin-bottom: 15px;
-        height: 100%;
-    }
-    .feature-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 12px 25px rgba(0,0,0,0.15);
-    }
+    .feature-card { background: #ffffff; padding: 30px 20px; border-radius: 15px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea; transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 15px; height: 100%; }
+    .feature-card:hover { transform: translateY(-8px); box-shadow: 0 12px 25px rgba(0,0,0,0.15); }
     .card-icon { font-size: 55px; margin-bottom: 15px; }
     .card-title { font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
     .card-text { font-size: 15px; color: #7f8c8d; line-height: 1.5; }
-    
     .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #eaeaea; color: #95a5a6; font-size: 14px; }
     </style>
 """, unsafe_allow_html=True)
@@ -195,7 +171,13 @@ if st.session_state.logged_in:
             if my_data[0] is None:
                 st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
             else:
-                tab_dash, tab_purch, tab_sales, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "📄 Balance Sheet & P&L"])
+                # ==========================================
+                # TABS DEFINITION BASED ON ROLE
+                # ==========================================
+                if st.session_state.user_role == "Wholesaler":
+                    tab_dash, tab_purch, tab_sales, tab_net, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "🏪 Retailer Network Stock", "📄 Balance Sheet & P&L"])
+                else:
+                    tab_dash, tab_purch, tab_sales, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "📄 Balance Sheet & P&L"])
                 
                 # --- TAB 1: DASHBOARD ---
                 with tab_dash:
@@ -306,7 +288,32 @@ if st.session_state.logged_in:
                         st.subheader("🖨️ Portable Printer Bill Preview (58mm/80mm)")
                         components.html(st.session_state.print_receipt, height=500)
 
-                # --- TAB 4: REPORTS ---
+                # --- 🔴 NEW: TAB FOR WHOLESALER TO TRACK RETAILER STOCK 🔴 ---
+                if st.session_state.user_role == "Wholesaler":
+                    with tab_net:
+                        st.subheader("🏪 Live Retailer Stock Tracking")
+                        st.write("View current stock levels across all registered Retail Shops.")
+                        
+                        r_stocks = run_query("SELECT u.name, u.email, i.item_name, i.stock, i.selling_price FROM inventory i JOIN users u ON i.shop_email = u.email WHERE u.role = 'Shop' AND i.stock > 0")
+                        
+                        if r_stocks:
+                            df_rs = pd.DataFrame(r_stocks, columns=["Retail Shop Name", "Shop Email", "Product Name", "Available Stock", "Retail Price (₹)"])
+                            
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                shop_list = ["All Shops"] + list(df_rs["Retail Shop Name"].unique())
+                                shop_filter = st.selectbox("🔍 Filter by Retail Shop Name", shop_list)
+                            
+                            if shop_filter != "All Shops":
+                                filtered_df = df_rs[df_rs["Retail Shop Name"] == shop_filter]
+                            else:
+                                filtered_df = df_rs
+                                
+                            st.dataframe(filtered_df, use_container_width=True)
+                        else:
+                            st.info("No stock data available from retail shops yet.")
+
+                # --- TAB 4/5: REPORTS ---
                 with tab_rep:
                     st.subheader("📄 Lifetime Balance Sheet & P&L")
                     t_sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND trans_type='Sale'", (st.session_state.user_email,))
@@ -353,7 +360,7 @@ else:
             <div class="feature-card" style="border-top: 5px solid #2196f3;">
                 <div class="card-icon">🏢</div>
                 <div class="card-title">Wholesaler Network</div>
-                <div class="card-text">Control master inventory, automate GST invoices, and track complete business P&L.</div>
+                <div class="card-text">Control master inventory, track retailer stocks live, and manage business P&L.</div>
             </div>
             """, unsafe_allow_html=True)
             if st.button("🔐 Login as Wholesaler", use_container_width=True): 

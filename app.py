@@ -69,7 +69,6 @@ def init_db():
     try: c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
     except: pass
 
-    # Super Admin Profile
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
               ('Super Admin', 'dhana6942@gmail.com', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
               
@@ -97,22 +96,120 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
+def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str):
+    return f"""
+    <html>
+    <head>
+    <style>
+        @media print {{
+            @page {{ margin: 0; size: 58mm 100mm; }}
+            body {{ margin: 0; padding: 0; background: #fff; }}
+            #print-btn {{ display: none; }}
+        }}
+        body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }}
+        .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }}
+        .center {{ text-align: center; }}
+        .line {{ border-top: 1px dashed #000; margin: 8px 0; }}
+        .bold {{ font-weight: bold; }}
+        table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }}
+        .right {{ text-align: right; }}
+        .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}
+    </style>
+    </head>
+    <body>
+        <div class="receipt-box">
+            <div class="center bold" style="font-size: 16px;">{shop_name}</div>
+            <div class="center" style="font-size: 10px; margin-bottom: 5px;">Retail Invoice / Cash Memo</div>
+            <div class="center" style="font-size: 11px;">Date: {date_str}</div>
+            <div class="line"></div>
+            <div><span class="bold">Item:</span> {item_name}</div>
+            <table>
+                <tr><td>Qty: {qty}</td><td class="right">Rate: {rate}</td></tr>
+                <tr><td>GST: {gst}%</td><td class="right"></td></tr>
+            </table>
+            <div class="line"></div>
+            <div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>
+            <div class="line"></div>
+            <div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div>
+        </div>
+        
+        <div id="print-btn">
+            <button class="btn" onclick="window.print()">
+                🖨️ Print Receipt (POS Machine)
+            </button>
+            <br><br>
+            <button onclick="window.parent.location.reload()" style="background: transparent; border: none; color: blue; text-decoration: underline; cursor: pointer;">
+                Cancel / New Bill
+            </button>
+        </div>
+    </body>
+    </html>
+    """
+
 # ==========================================
-# 2. PAGE CONFIG & PREMIUM CSS
+# 2. PAGE CONFIG & ULTRA PREMIUM CSS
 # ==========================================
 st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
 st.markdown("""
     <style>
-    .hero-container { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 50px 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
-    .hero-title { font-size: 48px; font-weight: 800; margin-bottom: 10px; letter-spacing: 1px; }
-    .hero-subtitle { font-size: 20px; font-weight: 300; opacity: 0.9; }
-    .feature-card { background: #ffffff; padding: 30px 20px; border-radius: 15px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea; transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 15px; height: 100%; }
-    .feature-card:hover { transform: translateY(-8px); box-shadow: 0 12px 25px rgba(0,0,0,0.15); }
-    .card-icon { font-size: 55px; margin-bottom: 15px; }
-    .card-title { font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
-    .card-text { font-size: 15px; color: #7f8c8d; line-height: 1.5; }
-    .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #eaeaea; color: #95a5a6; font-size: 14px; }
+    /* Animated Gradient Hero Section */
+    .hero-container { 
+        background: linear-gradient(-45deg, #0f2027, #203a43, #2c5364, #141E30); 
+        background-size: 400% 400%;
+        animation: gradientBG 12s ease infinite;
+        padding: 80px 20px; 
+        border-radius: 20px; 
+        color: white; 
+        text-align: center; 
+        margin-bottom: 50px; 
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2); 
+    }
+    @keyframes gradientBG {
+        0% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+        100% {background-position: 0% 50%;}
+    }
+    .hero-title { font-size: 55px; font-weight: 900; margin-bottom: 15px; letter-spacing: 2px; text-transform: uppercase; text-shadow: 2px 2px 8px rgba(0,0,0,0.4); }
+    .hero-subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; letter-spacing: 1px; }
+
+    /* Modern 3D Floating Cards */
+    .feature-card { 
+        background: #ffffff; 
+        padding: 40px 25px; 
+        border-radius: 20px; 
+        text-align: center; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
+        border: 1px solid #f0f0f0; 
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        margin-bottom: 20px; 
+        height: 100%; 
+    }
+    .feature-card:hover { 
+        transform: translateY(-15px); 
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
+    }
+    
+    /* Card Specific Top Borders */
+    .border-admin { border-top: 6px solid #FF416C; }
+    .border-wholesale { border-top: 6px solid #4A00E0; }
+    .border-shop { border-top: 6px solid #00b09b; }
+
+    .card-icon { font-size: 65px; margin-bottom: 20px; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1)); }
+    .card-title { font-size: 26px; font-weight: 800; color: #1a1a1a; margin-bottom: 12px; }
+    .card-text { font-size: 16px; color: #666; line-height: 1.6; font-weight: 400; margin-bottom: 20px; }
+    
+    /* Premium Register Section */
+    .register-section {
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid #eaeaea;
+        padding: 40px;
+        border-radius: 20px;
+        text-align: center;
+        margin-top: 20px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+    }
+    .footer { text-align: center; margin-top: 80px; padding-top: 25px; border-top: 1px solid #eaeaea; color: #a0a0a0; font-size: 14px; font-weight: 500; letter-spacing: 1px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -154,7 +251,6 @@ if st.session_state.logged_in:
                 
             with tab2:
                 st.subheader("⚙️ Set Payment Gateway & License Prices")
-                st.info("ଏଠାରେ ଆପଣ ଲାଇସେନ୍ସ ଦାମ୍ (Price) ସେଟ୍ କରିପାରିବେ। ନୂଆ ଗ୍ରାହକ ଏହି ଦାମ୍ ଦେଖିବେ।")
                 settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
                 
                 with st.form("price_settings"):
@@ -213,41 +309,33 @@ if st.session_state.logged_in:
             key_entered = my_data[4]
             exp_date = my_data[5]
             
-            # 🔴 CHECK IF LICENSE EXPIRED 🔴
             if str(date.today()) > str(exp_date):
-                st.error("❌ ଧ୍ୟାନ ଦିଅନ୍ତୁ! ଆପଣଙ୍କ Software License ସରିଯାଇଛି (Expired)।")
-                st.info(f"Expiry Date: {exp_date} | ଆପଣଙ୍କର ପୁରୁଣା ପ୍ୟାକେଜ୍: {pkg_type}")
-                st.warning("ସଫ୍ଟୱେର୍ କୁ ପୁଣି ବ୍ୟବହାର କରିବା ପାଇଁ ଦୟାକରି Super Admin ଙ୍କ ସହ ଯୋଗାଯୋଗ କରନ୍ତୁ କିମ୍ବା ନୂଆ ପ୍ୟାକେଜ୍ କିଣନ୍ତୁ।")
-                st.stop() # Stops loading the dashboard
+                st.error("❌ Your Software License has expired.")
+                st.info(f"Expiry Date: {exp_date} | Package: {pkg_type}")
+                st.stop()
                 
-            # 🔴 CHECK IF LICENSE KEY IS ENTERED 🔴
             if not key_entered:
                 st.title("🔐 Software License Activation")
-                st.warning("ସଫ୍ଟୱେର୍ ବ୍ୟବହାର କରିବା ପାଇଁ ଆପଣଙ୍କୁ License Key ଦେବାକୁ ପଡ଼ିବ।")
-                st.info(f"ଆପଣ ରେଜିଷ୍ଟ୍ରେସନ୍ ସମୟରେ କିଣିଥିବା ({pkg_type}) ର License Key ଆପଣଙ୍କ ଇମେଲ୍ ID ({st.session_state.user_email}) କୁ ପଠାଯାଇଛି। ଦୟାକରି Gmail ଖୋଲି ଚେକ୍ କରନ୍ତୁ।")
+                st.warning("Please enter your License Key to activate the software.")
+                st.info(f"Your {pkg_type} License Key was sent to {st.session_state.user_email}.")
+                entered_key = st.text_input("🔑 Enter License Key:", placeholder="KULU-XXXXXXXXXXXX")
                 
-                entered_key = st.text_input("🔑 Enter your License Key here:", placeholder="KULU-XXXXXXXXXXXX")
-                
-                if st.button("Activate My Software", type="primary"):
+                if st.button("Activate Software", type="primary"):
                     if entered_key.strip() == db_key:
                         run_query("UPDATE users SET key_entered=1 WHERE email=?", (st.session_state.user_email,))
-                        st.success("✅ License Key Verified! Software Activated Successfully.")
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error("❌ ଭୁଲ୍ ଲାଇସେନ୍ସ କି (Invalid License Key)! ଦୟାକରି ଇମେଲ୍ ଚେକ୍ କରନ୍ତୁ।")
-                st.stop() # Stop here until key is verified
+                        st.success("✅ Activated Successfully!")
+                        st.balloons(); st.rerun()
+                    else: st.error("❌ Invalid Key!")
+                st.stop()
             
-            # 🟢 IF LICENSE IS VALID & ENTERED, SHOW DASHBOARD 🟢
             c1, c2 = st.columns([3, 1])
             with c1: st.markdown(f'<h2>📊 Gateway of Kulu ERP - {shop_name} ({st.session_state.user_role})</h2>', unsafe_allow_html=True)
             with c2: st.info(f"Valid Till: {exp_date}")
             
-            # (Rest of the Wholesale/Retail Dashboards logic same as before)
             if st.session_state.user_role == "Wholesaler":
-                tab_dash, tab_purch, tab_sales, tab_net = st.tabs(["📈 Dashboard", "📥 Purchase (Stock In)", "🧾 Sales (Stock Out)", "🏪 Retailer Network"])
+                tab_dash, tab_purch, tab_sales, tab_net = st.tabs(["📈 Dashboard", "📥 Purchase", "🧾 Sales", "🏪 Retailer Network"])
             else:
-                tab_dash, tab_purch, tab_sales = st.tabs(["📈 Dashboard", "📥 Purchase (Stock In)", "🧾 Sales (Stock Out)"])
+                tab_dash, tab_purch, tab_sales = st.tabs(["📈 Dashboard", "📥 Purchase", "🧾 Sales"])
             
             with tab_dash:
                 st.subheader("Financial Summary (Today)")
@@ -293,46 +381,83 @@ if st.session_state.logged_in:
                         st.success(f"✅ Sale Recorded! Total: ₹ {s_final_price:.2f}")
 
 else:
-    # --- LOGGED OUT VIEWS ---
+    # --- LOGGED OUT VIEWS (ULTRA PREMIUM DESIGN) ---
     if st.session_state.current_page == "Home Ground":
         st.markdown("""
         <div class="hero-container">
             <div class="hero-title">🚀 Kulu Smart ERP & POS</div>
-            <div class="hero-subtitle">The Ultimate Cloud Billing, Barcode & Inventory Solution</div>
+            <div class="hero-subtitle">The Next-Generation Cloud Billing, Barcode & Inventory Management System</div>
         </div>
         """, unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("👑 Login as Admin", use_container_width=True): 
+            st.markdown("""
+            <div class="feature-card border-admin">
+                <div class="card-icon">👑</div>
+                <div class="card-title">Super Admin</div>
+                <div class="card-text">Control software licensing, manage pricing packages, and secure global platform operations.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Secure Admin Login", use_container_width=True): 
                 st.session_state.current_page = "Login"
                 st.session_state.login_role = "SuperAdmin"
                 st.rerun()
+                
         with col2:
-            if st.button("🏢 Login as Wholesaler", use_container_width=True): 
+            st.markdown("""
+            <div class="feature-card border-wholesale">
+                <div class="card-icon">🏢</div>
+                <div class="card-title">Wholesale Hub</div>
+                <div class="card-text">Automate B2B billing, track live retailer network stocks, and maximize your supply chain profit.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Wholesaler Portal", use_container_width=True): 
                 st.session_state.current_page = "Login"
                 st.session_state.login_role = "Wholesaler"
                 st.rerun()
+                
         with col3:
-            if st.button("🛒 Login as Shop", use_container_width=True): 
+            st.markdown("""
+            <div class="feature-card border-shop">
+                <div class="card-icon">🛒</div>
+                <div class="card-title">Retail POS</div>
+                <div class="card-text">Lightning-fast universal barcode scanning, instant thermal receipts, and real-time inventory.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Shop POS Login", use_container_width=True): 
                 st.session_state.current_page = "Login"
                 st.session_state.login_role = "Shop"
                 st.rerun()
             
-        st.markdown("<br><hr>", unsafe_allow_html=True)
+        st.markdown("""
+        <div class="register-section">
+            <h2 style='color: #1a1a1a; font-weight: 800; margin-bottom: 20px;'>Ready to transform your business?</h2>
+            <p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of modern businesses using Kulu ERP today. Get instant license key delivery via Email.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         c1, c2, c3 = st.columns([1, 2, 1])
         with c2:
-            if st.button("🛒 Register / Buy License (Instant Access)", use_container_width=True, type="primary"): 
-                st.session_state.current_page = "Register"
-                st.rerun()
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if st.button("🚀 Buy Software License", use_container_width=True, type="primary"): 
+                    st.session_state.current_page = "Register"
+                    st.rerun()
+            with cc2:
+                if st.button("🔑 Password Recovery", use_container_width=True): 
+                    st.session_state.current_page = "Forgot Password"
+                    st.rerun()
+                    
+        st.markdown("<div class='footer'>© 2026 Kulu Smart Solutions Global. Engineered for Excellence.</div>", unsafe_allow_html=True)
 
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title(f"🔐 {st.session_state.login_role} Login")
-        l_email = st.text_input("Email")
-        l_pass = st.text_input("Password", type="password")
+        l_email = st.text_input("Email Address")
+        l_pass = st.text_input("Secure Password", type="password")
         
-        if st.button("Login", type="primary"):
+        if st.button("Login Securely", type="primary"):
             user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, l_pass))
             if user:
                 if user[0][1] == st.session_state.login_role:
@@ -342,12 +467,16 @@ else:
                     st.rerun()
                 else: st.error("❌ Role Mismatch.")
             else: st.error("Invalid Credentials.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button(f"🔑 Forgot Password ({st.session_state.login_role})", use_container_width=False):
+            st.session_state.current_page = "Forgot Password"
+            st.rerun()
 
-    # 🔴 AUTOMATED PAYMENT GATEWAY & LICENSE GENERATION REGISTRATION 🔴
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🛒 Buy Kulu ERP Software License")
-        st.info("Payment କଲା ମାତ୍ରେ ଲାଇସେନ୍ସ କି (License Key) ସିଧା ଆପଣଙ୍କ ଇମେଲ୍ କୁ ପଠାଯିବ।")
+        st.info("Payment korar shathe shathe License Key apnar Email e automatic chole jabe.")
         
         settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
         gst_pct = settings[6]
@@ -377,27 +506,63 @@ else:
             
             if st.form_submit_button("Submit Payment & Get License"):
                 if r_name and r_email and r_pass and r_utr:
-                    # Auto Generate License & Expiry
                     new_key = generate_license()
                     exp_date = str(date.today() + timedelta(days=pkg_days))
                     
                     try:
-                        # Auto-Approve directly after registration (Simulating Payment Gateway Success)
                         run_query("INSERT INTO users (name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                   (r_name, r_email, r_pass, r_role, 'Paid', 1, r_utr, total_with_gst, pkg_name, new_key, exp_date, 0))
                         
                         st.success("✅ Payment Successful! Your License Key has been generated.")
                         
-                        # Email the key
                         subject = f"Your Kulu ERP {pkg_name} License Key"
-                        body = f"ନମସ୍କାର {r_name},\n\nଆପଣଙ୍କର Kulu Smart ERP ପ୍ୟାକେଜ୍ ({pkg_name}) ସଫଳତାର ସହ ରେଜିଷ୍ଟର୍ ହୋଇଛି!\n\n🔑 ଆପଣଙ୍କ License Key ହେଉଛି: {new_key}\n📅 Expiry Date: {exp_date}\n\nଦୟାକରି ସଫ୍ଟୱେର୍ ରେ ଲଗଇନ୍ କରି ଏହି କି (Key) ବ୍ୟବହାର କରି ଆକ୍ଟିଭେଟ୍ କରନ୍ତୁ।\n\nଧନ୍ୟବାଦ!"
+                        body = f"Hello {r_name},\n\nApnar Kulu Smart ERP Package ({pkg_name}) success bhabe register hoyeche!\n\n🔑 Apnar License Key: {new_key}\n📅 Expiry Date: {exp_date}\n\nDoya kore software e login kore ei key ti use kore activate korun.\n\nDhanyabad!"
                         
                         with st.spinner("Emailing your license key..."):
                             send_real_email(r_email, subject, body)
                             
                         st.balloons()
-                        st.info("📧 ଲାଇସେନ୍ସ କି ଆପଣଙ୍କ ଇମେଲ୍ କୁ ପଠାଯାଇଛି। ଦୟାକରି ଲଗଇନ୍ ପେଜ୍ କୁ ଯାଇ ନିଜ ଆକାଉଣ୍ଟ ଖୋଲନ୍ତୁ।")
+                        st.info("📧 License Key apnar email e pathano hoyeche. Doya kore login page e giye nijer account open korun.")
                         
                     except sqlite3.IntegrityError:
-                        st.error("❌ ଏହି Email ପୂର୍ବରୁ ରେଜିଷ୍ଟର୍ ହୋଇସାରିଛି!")
+                        st.error("❌ Ei Email id theke aage thekei registration kora ache!")
                 else: st.warning("Please fill all details to complete payment.")
+
+    elif st.session_state.current_page == "Forgot Password":
+        if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
+        st.title("🔑 Reset Password (OTP)")
+        if "forgot_step" not in st.session_state: st.session_state.forgot_step = 1
+        
+        if st.session_state.forgot_step == 1:
+            f_email = st.text_input("Enter your Registered Email")
+            if st.button("Send Real OTP to Email"):
+                if run_query("SELECT email FROM users WHERE email=?", (f_email,)):
+                    st.session_state.forgot_otp = str(random.randint(100000, 999999))
+                    st.session_state.forgot_email = f_email
+                    
+                    with st.spinner("Sending OTP to your email... Please wait."):
+                        success = send_real_email(f_email, "Password Reset OTP", f"Your OTP is {st.session_state.forgot_otp}")
+                        
+                    if success:
+                        st.session_state.forgot_step = 2
+                        st.rerun()
+                    else:
+                        st.error("❌ Email pathate problem hoyeche!")
+                else: st.error("❌ Ei Email aamader system e nei.")
+                    
+        elif st.session_state.forgot_step == 2:
+            st.success(f"📧 Real OTP apnar {st.session_state.forgot_email} te pathano hoyeche! (Check Inbox/Spam)")
+            e_otp = st.text_input("Enter 6-digit OTP")
+            if st.button("Verify OTP"):
+                if e_otp == st.session_state.forgot_otp:
+                    st.session_state.forgot_step = 3
+                    st.rerun()
+                else:
+                    st.error("❌ Vul OTP!")
+                    
+        elif st.session_state.forgot_step == 3:
+            new_pass = st.text_input("Enter New Password", type="password")
+            if st.button("Update Password") and new_pass:
+                run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
+                st.success("✅ Password updated! Click 'Back to Home' to Login.")
+                st.session_state.forgot_step = 1

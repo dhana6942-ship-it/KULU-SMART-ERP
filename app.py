@@ -208,7 +208,7 @@ if st.session_state.logged_in:
                 
             with tab_act:
                 st.subheader("✅ Active Clients & Management")
-                st.write("ଏଠାରେ ଆପଣ ଗ୍ରାହକଙ୍କୁ ମାନୁଆଲ୍ ଇମେଲ୍ ପଠାଇପାରିବେ କିମ୍ବା ତାଙ୍କ ଆକାଉଣ୍ଟ କୁ ଡିଲିଟ୍ କରିପାରିବେ।")
+                st.write("Ehiya thi tame customers ne manual email mokali shako chho athva delete kari shako chho.")
                 active = run_query("SELECT email, name, role, package_type, expiry_date, license_key, owner_name, paid_amount FROM users WHERE approved=1 AND role != 'SuperAdmin' AND is_deleted=0")
                 if active:
                     df = pd.DataFrame(active, columns=["Email", "Business Name", "Role", "Package", "Expiry", "License Key", "Owner", "Paid"])
@@ -256,10 +256,9 @@ if st.session_state.logged_in:
                                   (n_upi, n_demo, n_mon, n_six, n_yr, n_life, n_gst, n_notice))
                         st.success("✅ Notice and Prices Updated Successfully!"); st.rerun()
 
-            # 🔴 NEW PERMANENT DELETE OPTION IN RECYCLE BIN 🔴
             with tab_rec:
                 st.subheader("♻️ Data Recovery / Permanent Delete")
-                st.write("ଏଠାରୁ ଆପଣ ଡିଲିଟ୍ ହୋଇଥିବା ପାର୍ଟିର ଡାଟା ଫେରାଇ ଆଣିପାରିବେ କିମ୍ବା ସବୁଦିନ ପାଇଁ ଡିଲିଟ୍ କରିପାରିବେ।")
+                st.write("Ehiya thi delete karela party no data pacho lavi shako chho ya hamesh mate delete kari shako chho.")
                 del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1 AND role != 'SuperAdmin'")
                 if del_users:
                     for d_u in del_users:
@@ -271,9 +270,7 @@ if st.session_state.logged_in:
                             st.success(f"✅ Restored {d_u[1]}!"); st.rerun()
                             
                         if col3.button(f"❌ Permanent Delete", key=f"pdel_{d_u[0]}"):
-                            # Hard delete from Database
                             run_query("DELETE FROM users WHERE email=?", (d_u[0],))
-                            # Optional: delete their inventory and transactions too
                             run_query("DELETE FROM inventory WHERE shop_email=?", (d_u[0],))
                             run_query("DELETE FROM transactions WHERE shop_email=?", (d_u[0],))
                             st.success(f"✅ Permanently Deleted {d_u[1]}!"); st.rerun()
@@ -418,7 +415,7 @@ if st.session_state.logged_in:
 
             with tab_prof:
                 st.subheader("⚙️ Update Shop Profile & Payment Settings")
-                st.info("ଏଠାରେ ଆପଣଙ୍କର ଦୋକାନର UPI ID ଦିଅନ୍ତୁ, ଯାହା ବିଲ୍ ରେ ଗ୍ରାହକଙ୍କ ପାଇଁ QR କୋଡ୍ ହୋଇ ବାହାରିବ!")
+                st.info("Ehiya tamari shop ni UPI ID nakho je bill par QR code bani ne aavse!")
                 with st.form("shop_profile_form"):
                     c1, c2 = st.columns(2)
                     with c1: new_upi = st.text_input("Your Shop UPI ID (PhonePe/GPay)", value=shop_upi if shop_upi else "")
@@ -621,8 +618,9 @@ else:
                         exp_days = 10 if d['pkg_name']=="Demo" else 30 if d['pkg_name']=="Monthly" else 180 if d['pkg_name']=="6 Months" else 365 if d['pkg_name']=="1 Year" else 36500
                         exp_date = str(date.today() + timedelta(days=exp_days))
                         
+                        # 🔴 PAN_GST_NO FIX 🔴
                         run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, 
-                                     aadhar, pan_gst, address, state, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) 
+                                     aadhar, pan_gst_no, address, state, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) 
                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                                   (d['name'], d['owner'], d['email'], d['pass'], d['role'], 'Paid', 1, 
                                    d['aadhar'], d['pan_gst'], d['address'], d['state'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0))
@@ -655,19 +653,19 @@ else:
                     with st.spinner("Sending OTP to your email... Please wait."):
                         success = send_real_email(f_email, "Password Reset OTP", f"Your OTP is {st.session_state.forgot_otp}")
                     if success: st.session_state.forgot_step = 2; st.rerun()
-                    else: st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ କିମ୍ବା ଆପ୍ ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
-                else: st.error("❌ ଏହି Email ଆମ ସିଷ୍ଟମ୍ ରେ ନାହିଁ।")
+                    else: st.error("❌ Email pathavavama samasya aavi! Network check karo.")
+                else: st.error("❌ Aa Email system ma nathi.")
                     
         elif st.session_state.forgot_step == 2:
-            st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.forgot_email} କୁ ପଠାଯାଇଛି! (Check Inbox/Spam)")
+            st.success(f"📧 Real OTP tamara {st.session_state.forgot_email} par mokalyo chhe! (Inbox/Spam check karo)")
             e_otp = st.text_input("Enter 6-digit OTP")
             if st.button("Verify OTP"):
                 if e_otp == st.session_state.forgot_otp: st.session_state.forgot_step = 3; st.rerun()
-                else: st.error("❌ ଭୁଲ୍ OTP!")
+                else: st.error("❌ Khoto OTP!")
                     
         elif st.session_state.forgot_step == 3:
             new_pass = st.text_input("Enter New Password", type="password")
             if st.button("Update Password") and new_pass:
                 run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                st.success("✅ Password updated! Click 'Back to Home' to Login.")
+                st.success("✅ Password updated! 'Back to Home' par click kari login karo.")
                 st.session_state.forgot_step = 1

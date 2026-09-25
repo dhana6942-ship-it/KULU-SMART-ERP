@@ -11,11 +11,11 @@ def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
     c = conn.cursor()
     
-    # Users Table
+    # Users Table (Added shop_photo column)
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, 
                  payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT,
-                 utr_no TEXT, paid_amount REAL, package_type TEXT, license_key TEXT, is_deleted INTEGER DEFAULT 0)''')
+                 utr_no TEXT, paid_amount REAL, package_type TEXT, license_key TEXT, is_deleted INTEGER DEFAULT 0, shop_photo BLOB)''')
                  
     # Admin Settings Table 
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings
@@ -27,6 +27,7 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN package_type TEXT")
         c.execute("ALTER TABLE users ADD COLUMN license_key TEXT")
         c.execute("ALTER TABLE users ADD COLUMN is_deleted INTEGER DEFAULT 0")
+        c.execute("ALTER TABLE users ADD COLUMN shop_photo BLOB")
     except:
         pass
 
@@ -91,7 +92,7 @@ if st.session_state.logged_in:
         # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             st.title("👑 Super Admin Control Panel")
-            tab1, tab2, tab3, tab4 = st.tabs(["🛡️ Client Approvals", "⚙️ Pricing & UPI Settings", "♻️ Data Recovery", "🔐 Profile & Security"])
+            tab1, tab2, tab3, tab4, tab5 = st.tabs(["🛡️ Client Approvals", "⚙️ Pricing & Settings", "♻️ Data Recovery", "🔐 Profile & Security", "🖼️ Shop Photos Control"])
             
             with tab1:
                 st.subheader("Pending & Active Clients")
@@ -152,8 +153,6 @@ if st.session_state.logged_in:
 
             with tab4:
                 st.subheader("🔐 Update Admin ID & Password")
-                st.write("Securely change your Super Admin Email, Mobile No, and Password with OTP Verification.")
-                
                 curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
                 
                 if st.session_state.admin_update_step == 1:
@@ -171,9 +170,8 @@ if st.session_state.logged_in:
                         st.rerun()
                         
                 elif st.session_state.admin_update_step == 2:
-                    st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.admin_otp}** ) sent to {st.session_state.user_email}")
-                    e_otp = st.text_input("Enter 6-digit OTP to confirm changes")
-                    
+                    st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.admin_otp}** )")
+                    e_otp = st.text_input("Enter 6-digit OTP")
                     c1, c2 = st.columns(2)
                     with c1:
                         if st.button("✅ Verify & Save Changes"):
@@ -183,23 +181,79 @@ if st.session_state.logged_in:
                                     run_query("UPDATE users SET email=?, mobile=?, password=? WHERE email=?", 
                                               (d['email'], d['mobile'], d['pass'], st.session_state.user_email))
                                     st.success("🎉 Profile & Password Updated Successfully!")
-                                    st.session_state.user_email = d['email'] # Update active session ID
+                                    st.session_state.user_email = d['email']
                                     st.session_state.admin_update_step = 1
                                     st.rerun()
                                 except sqlite3.IntegrityError:
-                                    st.error("❌ ଏହି ଇମେଲ୍ ID ପୂର୍ବରୁ ଅନ୍ୟ ଏକ ଆକାଉଣ୍ଟ୍ ସହିତ ରେଜିଷ୍ଟର୍ ହୋଇଛି! ଦୟାକରି ଏକ ନୂଆ ଇମେଲ୍ ଦିଅନ୍ତୁ।")
+                                    st.error("❌ ଏହି ଇମେଲ୍ ID ପୂର୍ବରୁ ରେଜିଷ୍ଟର୍ ହୋଇଛି! ଏକ ନୂଆ ଇମେଲ୍ ଦିଅନ୍ତୁ।")
                             else:
-                                st.error("❌ Invalid OTP. Try again.")
+                                st.error("❌ Invalid OTP.")
                     with c2:
                         if st.button("🚫 Cancel"):
                             st.session_state.admin_update_step = 1
                             st.rerun()
 
-        # ---------------- WHOLESALER / SHOP ----------------
+            # NEW: SUPER ADMIN PHOTO CONTROL
+            with tab5:
+                st.subheader("🖼️ Master Control: Shop Photos")
+                st.write("View and manage profile photos uploaded by your clients.")
+                clients_with_photos = run_query("SELECT email, name, role, shop_photo FROM users WHERE role != 'SuperAdmin' AND is_deleted=0 AND shop_photo IS NOT NULL")
+                if clients_with_photos:
+                    for cl in clients_with_photos:
+                        col1, col2 = st.columns([1, 3])
+                        with col1:
+                            st.image(cl[3], width=120)
+                        with col2:
+                            st.write(f"**Business Name:** {cl[1]} ({cl[2]})")
+                            st.write(f"**Email ID:** {cl[0]}")
+                            if st.button(f"🗑️ Remove Photo of {cl[1]}", key=f"del_{cl[0]}"):
+                                run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (cl[0],))
+                                st.success("Photo removed successfully!")
+                                st.rerun()
+                        st.markdown("---")
+                else:
+                    st.info("No clients have uploaded their shop photos yet.")
+
+        # ---------------- WHOLESALER / SHOP DASHBOARD ----------------
         else:
-            st.title(f"🏢 {st.session_state.user_role} Dashboard")
-            my_data = run_query("SELECT license_key, package_type FROM users WHERE email=?", (st.session_state.user_email,))[0]
-            st.info(f"**Your License Key:** {my_data[0] if my_data[0] else 'Pending Admin Approval'} | **Package:** {my_data[1]}")
+            my_data = run_query("SELECT license_key, package_type, shop_photo, name FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.title(f"🏢 {my_data[3]} ({st.session_state.user_role})")
+                st.info(f"**License Key:** {my_data[0] if my_data[0] else 'Pending Approval'} | **Package:** {my_data[1]}")
+            with c2:
+                if my_data[2]:
+                    st.image(my_data[2], width=120, caption="Shop Photo")
+                else:
+                    st.write("📷 No Shop Photo")
+                    
+            tab1, tab2, tab3 = st.tabs(["📊 Business Stats", "📦 Inventory / Bills", "📸 Upload Shop Photo"])
+            
+            with tab1: st.info("Daily sales and metrics will be displayed here.")
+            with tab2: st.info("Billing and Inventory modules will be added here.")
+            
+            # NEW: SHOP PHOTO UPLOAD FEATURE
+            with tab3:
+                st.subheader("📸 Set Your Profile / Shop Photo")
+                st.write("This photo will be displayed on your dashboard and visible to the Super Admin.")
+                
+                uploaded_photo = st.file_uploader("Choose a valid image file", type=["jpg", "jpeg", "png"])
+                if uploaded_photo is not None:
+                    if st.button("💾 Save Photo"):
+                        photo_bytes = uploaded_photo.getvalue()
+                        run_query("UPDATE users SET shop_photo=? WHERE email=?", (photo_bytes, st.session_state.user_email))
+                        st.success("🎉 Photo successfully uploaded!")
+                        st.rerun()
+                
+                if my_data[2]:
+                    st.markdown("---")
+                    st.write("### Your Current Photo:")
+                    st.image(my_data[2], width=300)
+                    if st.button("🗑️ Delete My Photo"):
+                        run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (st.session_state.user_email,))
+                        st.success("Your photo has been deleted.")
+                        st.rerun()
 
 else:
     # --- LOGGED OUT VIEWS ---

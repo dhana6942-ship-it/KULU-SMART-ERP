@@ -4,6 +4,7 @@ import pandas as pd
 import random
 import string
 import urllib.parse
+import time
 from datetime import date, timedelta
 import streamlit.components.v1 as components
 import smtplib
@@ -50,13 +51,14 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS transactions
                  (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
                  
-    # Add new columns gracefully
     cols_to_add = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), 
         ("package_type", "TEXT"), ("license_key", "TEXT"), 
         ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"),
         ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
-        ("upi_id", "TEXT") # Shop's personal UPI ID for bills
+        ("upi_id", "TEXT"), 
+        ("owner_name", "TEXT"), ("pan_gst_no", "TEXT"),
+        ("address", "TEXT"), ("state", "TEXT")
     ]
     for col, dtype in cols_to_add:
         try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
@@ -65,7 +67,7 @@ def init_db():
     admin_cols_to_add = [
         ("demo_price", "REAL DEFAULT 99.0"), 
         ("six_month_price", "REAL DEFAULT 2499.0"),
-        ("notice_text", "TEXT DEFAULT 'Welcome to Kulu Smart ERP! Helpdesk: +91-XXXXX'")
+        ("notice_text", "TEXT DEFAULT 'Welcome to Kulu Smart ERP! Premium POS Software.'")
     ]
     for col, dtype in admin_cols_to_add:
         try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
@@ -103,11 +105,9 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
-# 🔴 AUTO GENERATE DYNAMIC PAYMENT QR CODE FOR BILL 🔴
 def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str, shop_upi=""):
     qr_html = ""
     if shop_upi:
-        # Generate UPI intent link with exact amount
         upi_url = f"upi://pay?pa={shop_upi}&pn={shop_name}&am={total_price:.2f}&cu=INR"
         encoded_upi = urllib.parse.quote(upi_url)
         qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={encoded_upi}"
@@ -122,18 +122,11 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
     <html>
     <head>
     <style>
-        @media print {{
-            @page {{ margin: 0; size: 58mm auto; }}
-            body {{ margin: 0; padding: 0; background: #fff; }}
-            #print-btn {{ display: none; }}
-        }}
+        @media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }}
         body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }}
         .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }}
-        .center {{ text-align: center; }}
-        .line {{ border-top: 1px dashed #000; margin: 8px 0; }}
-        .bold {{ font-weight: bold; }}
-        table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }}
-        .right {{ text-align: right; }}
+        .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }}
+        table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }}
         .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}
     </style>
     </head>
@@ -144,25 +137,16 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
             <div class="center" style="font-size: 11px;">Date: {date_str}</div>
             <div class="line"></div>
             <div><span class="bold">Item:</span> {item_name}</div>
-            <table>
-                <tr><td>Qty: {qty}</td><td class="right">Rate: {rate}</td></tr>
-                <tr><td>GST: {gst}%</td><td class="right"></td></tr>
-            </table>
+            <table><tr><td>Qty: {qty}</td><td class="right">Rate: {rate}</td></tr><tr><td>GST: {gst}%</td><td class="right"></td></tr></table>
             <div class="line"></div>
             <div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>
             {qr_html}
             <div class="line"></div>
             <div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div>
         </div>
-        
         <div id="print-btn">
-            <button class="btn" onclick="window.print()">
-                🖨️ Print Receipt & QR Code
-            </button>
-            <br><br>
-            <button onclick="window.parent.location.reload()" style="background: transparent; border: none; color: blue; text-decoration: underline; cursor: pointer;">
-                Cancel / New Bill
-            </button>
+            <button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br>
+            <button onclick="window.parent.location.reload()" style="background: transparent; border: none; color: blue; text-decoration: underline; cursor: pointer;">Cancel / New Bill</button>
         </div>
     </body>
     </html>
@@ -179,10 +163,7 @@ st.markdown("""
     @keyframes gradientBG { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
     .hero-title { font-size: 55px; font-weight: 900; margin-bottom: 15px; letter-spacing: 2px; text-transform: uppercase; text-shadow: 2px 2px 8px rgba(0,0,0,0.4); }
     .hero-subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; letter-spacing: 1px; }
-    
-    /* Notice Board Marquee */
-    .notice-board { background: #ffeb3b; color: #d32f2f; font-weight: bold; font-size: 18px; padding: 10px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    
+    .notice-board { background: #ffeb3b; color: #d32f2f; font-weight: bold; font-size: 18px; padding: 10px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 2px solid #fbc02d; }
     .feature-card { background: #ffffff; padding: 40px 25px; border-radius: 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-bottom: 20px; height: 100%; }
     .feature-card:hover { transform: translateY(-15px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
     .border-admin { border-top: 6px solid #FF416C; }
@@ -203,6 +184,8 @@ if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Home Ground"
 if "login_role" not in st.session_state: st.session_state.login_role = None
 
+INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"]
+
 # ==========================================
 # 4. APP ROUTING
 # ==========================================
@@ -221,29 +204,38 @@ if st.session_state.logged_in:
         # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             st.title("👑 Super Admin Control Panel")
-            tab1, tab2, tab3, tab4 = st.tabs(["🛡️ Client Mgmt", "⚙️ Pricing & Notice", "♻️ Data Recovery", "🔐 Admin Profile"])
-            
-            with tab1:
-                st.subheader("All Registered Clients")
-                users = run_query("SELECT email, name, role, package_type, paid_amount, expiry_date, is_deleted FROM users WHERE role != 'SuperAdmin'")
-                if users:
-                    df = pd.DataFrame(users, columns=["Email", "Name", "Role", "Package", "Amount Paid", "Expiry Date", "Status"])
-                    df["Status"] = df["Status"].apply(lambda x: "Suspended/Deleted" if x==1 else "Active")
+            tab_act, tab_set, tab_rec, tab_prof = st.tabs(["✅ Active Clients & Manual Mail", "⚙️ Pricing & Notice", "♻️ Data Recovery", "🔐 Admin Profile"])
+                
+            with tab_act:
+                st.subheader("✅ Active Clients & Manual License Backup")
+                st.write("ଗ୍ରାହକଙ୍କୁ ଅଟୋମେଟିକ୍ License ପଳାଇଥାଏ। ଯଦି ନେଟୱର୍କ ପାଇଁ ଫେଲ୍ ହୁଏ, ତେବେ ଏଠାରୁ 'Manual Resend' କରନ୍ତୁ କିମ୍ବା Key କପି କରନ୍ତୁ।")
+                active = run_query("SELECT email, name, role, package_type, expiry_date, license_key, owner_name, paid_amount FROM users WHERE approved=1 AND role != 'SuperAdmin' AND is_deleted=0")
+                if active:
+                    df = pd.DataFrame(active, columns=["Email", "Business Name", "Role", "Package", "Expiry", "License Key", "Owner", "Paid"])
                     st.dataframe(df, use_container_width=True)
                     
                     st.markdown("---")
                     c1, c2 = st.columns(2)
                     with c1:
-                        app_email = st.selectbox("Select User Email to Suspend", [u[0] for u in users if u[6] == 0])
+                        sel_mail = st.selectbox("Select Email to Resend License", [a[0] for a in active])
+                        if st.button("📧 Manual Resend Mail (Backup)"):
+                            usr = [u for u in active if u[0] == sel_mail][0]
+                            subject = f"Your Kulu ERP {usr[3]} License (Resend)"
+                            body = f"Hello {usr[6]},\n\nHere is your requested License Key.\n🔑 License Key: {usr[5]}\n📅 Expiry Date: {usr[4]}\nAmount Paid: ₹{usr[7]}\n\nThanks,\nKulu Smart ERP"
+                            with st.spinner("Resending Email..."):
+                                res = send_real_email(sel_mail, subject, body)
+                            if res: st.success("✅ Email Sent Successfully!")
+                            else: st.error("❌ Failed to send email. You can copy the License Key from the table above and send via WhatsApp.")
+                    with c2:
+                        sel_del = st.selectbox("Select Email to Suspend", [a[0] for a in active])
                         if st.button("🗑️ Suspend User"):
-                            run_query("UPDATE users SET is_deleted=1 WHERE email=?", (app_email,))
+                            run_query("UPDATE users SET is_deleted=1 WHERE email=?", (sel_del,))
                             st.success("User Suspended!"); st.rerun()
-                else: st.info("No clients yet.")
+                else: st.write("No active clients.")
                 
-            with tab2:
+            with tab_set:
                 st.subheader("⚙️ Set Payment, Prices & Notice Board")
                 settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst, notice_text FROM admin_settings WHERE id=1")[0]
-                
                 with st.form("price_settings"):
                     n_notice = st.text_input("📢 Notice Board Text (Displays running on Home Page)", value=settings[7])
                     st.markdown("---")
@@ -262,24 +254,21 @@ if st.session_state.logged_in:
                     if st.form_submit_button("Update Prices & Notice"):
                         run_query("UPDATE admin_settings SET upi_id=?, demo_price=?, monthly_price=?, six_month_price=?, yearly_price=?, lifetime_price=?, soft_gst=?, notice_text=? WHERE id=1",
                                   (n_upi, n_demo, n_mon, n_six, n_yr, n_life, n_gst, n_notice))
-                        st.success("✅ Notice and Prices Updated Successfully!")
-                        st.rerun()
+                        st.success("✅ Notice and Prices Updated Successfully!"); st.rerun()
 
-            # 🔴 DATA RECOVERY TAB FOR ADMIN 🔴
-            with tab3:
+            with tab_rec:
                 st.subheader("♻️ Data Recovery / Recycle Bin")
-                st.write("Restore client accounts that were deleted or suspended.")
                 del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1 AND role != 'SuperAdmin'")
                 if del_users:
                     for d_u in del_users:
                         col1, col2 = st.columns([3, 1])
                         col1.error(f"🗑️ Name: {d_u[1]} | Role: {d_u[2]} | Email: {d_u[0]}")
-                        if col2.button(f"♻️ Restore Account", key=f"res_{d_u[0]}"):
+                        if col2.button(f"♻️ Restore", key=f"res_{d_u[0]}"):
                             run_query("UPDATE users SET is_deleted=0 WHERE email=?", (d_u[0],))
-                            st.success(f"✅ Account {d_u[1]} Restored Successfully!"); st.rerun()
-                else: st.info("No deleted accounts found in Recycle Bin.")
+                            st.success(f"✅ Restored {d_u[1]}!"); st.rerun()
+                else: st.info("No deleted accounts found.")
 
-            with tab4:
+            with tab_prof:
                 st.subheader("🔐 Update Admin Profile")
                 curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
                 if "admin_update_step" not in st.session_state: st.session_state.admin_update_step = 1
@@ -308,7 +297,7 @@ if st.session_state.logged_in:
         else:
             my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst FROM users WHERE email=?", (st.session_state.user_email,))[0]
             db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst = my_data
-            
+                
             if str(date.today()) > str(exp_date):
                 st.error("❌ Your Software License has expired.")
                 st.info(f"Expiry Date: {exp_date} | Package: {pkg_type}")
@@ -317,12 +306,11 @@ if st.session_state.logged_in:
             if not key_entered:
                 st.title("🔐 Software License Activation")
                 st.warning("Please enter your License Key to activate the software.")
-                entered_key = st.text_input("🔑 Enter License Key:", placeholder="KULU-XXXXXXXXXXXX")
+                entered_key = st.text_input("🔑 Enter License Key (Check your Email):", placeholder="KULU-XXXXXXXXXXXX")
                 if st.button("Activate Software", type="primary"):
                     if entered_key.strip() == db_key:
                         run_query("UPDATE users SET key_entered=1 WHERE email=?", (st.session_state.user_email,))
-                        st.success("✅ Activated Successfully!")
-                        st.balloons(); st.rerun()
+                        st.success("✅ Activated Successfully!"); st.balloons(); st.rerun()
                     else: st.error("❌ Invalid Key!")
                 st.stop()
             
@@ -330,7 +318,6 @@ if st.session_state.logged_in:
             with c1: st.markdown(f'<h2>📊 Gateway of Kulu ERP - {shop_name} ({st.session_state.user_role})</h2>', unsafe_allow_html=True)
             with c2: st.info(f"Valid Till: {exp_date}")
             
-            # SETTING TABS
             if st.session_state.user_role == "Wholesaler":
                 tab_dash, tab_purch, tab_sales, tab_net, tab_prof = st.tabs(["📈 Dash", "📥 Purchase", "🧾 Sales", "🏪 Network", "⚙️ Settings"])
             else:
@@ -403,8 +390,6 @@ if st.session_state.logged_in:
                             run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                                       (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale'))
                             st.success(f"✅ Sale Recorded! Total: ₹ {s_final_price:.2f}")
-                            
-                            # GENERATE HTML RECEIPT WITH AUTO DYNAMIC UPI QR
                             st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()), shop_upi)
                         else: st.error("Not enough stock!")
                 
@@ -420,27 +405,21 @@ if st.session_state.logged_in:
                     if r_stocks: st.dataframe(pd.DataFrame(r_stocks, columns=["Retail Shop", "Email", "Product", "Stock", "Price (₹)"]), use_container_width=True)
                     else: st.info("No stock data.")
 
-            # 🔴 NEW SHOP/WHOLESALER PROFILE & GST/UPI SETTINGS 🔴
             with tab_prof:
                 st.subheader("⚙️ Update Shop Profile & Payment Settings")
-                st.info("ଏଠାରେ ଆପଣଙ୍କର ଦୋକାନର UPI ID ଦିଅନ୍ତୁ, ଯାହା ବିଲ୍ ରେ QR କୋଡ୍ ହୋଇ ବାହାରିବ!")
+                st.info("ଏଠାରେ ଆପଣଙ୍କର ଦୋକାନର UPI ID ଦିଅନ୍ତୁ, ଯାହା ବିଲ୍ ରେ ଗ୍ରାହକଙ୍କ ପାଇଁ QR କୋଡ୍ ହୋଇ ବାହାରିବ!")
                 with st.form("shop_profile_form"):
                     c1, c2 = st.columns(2)
-                    with c1:
-                        new_upi = st.text_input("Your Shop UPI ID (PhonePe/GPay)", value=shop_upi if shop_upi else "")
-                    with c2:
-                        new_gst = st.text_input("Your Shop GST No.", value=shop_gst if shop_gst else "")
-                    
+                    with c1: new_upi = st.text_input("Your Shop UPI ID (PhonePe/GPay)", value=shop_upi if shop_upi else "")
+                    with c2: new_gst = st.text_input("Your Shop GST No.", value=shop_gst if shop_gst else "")
                     if st.form_submit_button("💾 Save Profile Settings"):
                         run_query("UPDATE users SET upi_id=?, gst=? WHERE email=?", (new_upi, new_gst, st.session_state.user_email))
                         st.success("✅ Profile Updated Successfully! Next bills will generate QR Code for this UPI ID.")
                         st.rerun()
 
 else:
-    # --- LOGGED OUT VIEWS (ULTRA PREMIUM DESIGN) ---
+    # --- LOGGED OUT VIEWS ---
     if st.session_state.current_page == "Home Ground":
-        
-        # 🔴 RUNNING NOTICE BOARD FROM SUPER ADMIN 🔴
         settings = run_query("SELECT notice_text FROM admin_settings WHERE id=1")[0]
         notice_msg = settings[0] if settings[0] else "Welcome to Kulu Smart ERP!"
         
@@ -458,46 +437,35 @@ else:
         with col1:
             st.markdown("""
             <div class="feature-card border-admin">
-                <div class="card-icon">👑</div>
-                <div class="card-title">Super Admin</div>
+                <div class="card-icon">👑</div><div class="card-title">Super Admin</div>
                 <div class="card-text">Control software licensing, manage pricing packages, and secure global platform operations.</div>
             </div>
             """, unsafe_allow_html=True)
             if st.button("Secure Admin Login", use_container_width=True): 
-                st.session_state.current_page = "Login"
-                st.session_state.login_role = "SuperAdmin"
-                st.rerun()
-                
+                st.session_state.current_page = "Login"; st.session_state.login_role = "SuperAdmin"; st.rerun()
         with col2:
             st.markdown("""
             <div class="feature-card border-wholesale">
-                <div class="card-icon">🏢</div>
-                <div class="card-title">Wholesale Hub</div>
+                <div class="card-icon">🏢</div><div class="card-title">Wholesale Hub</div>
                 <div class="card-text">Automate B2B billing, track live retailer network stocks, and maximize your supply chain profit.</div>
             </div>
             """, unsafe_allow_html=True)
             if st.button("Wholesaler Portal", use_container_width=True): 
-                st.session_state.current_page = "Login"
-                st.session_state.login_role = "Wholesaler"
-                st.rerun()
-                
+                st.session_state.current_page = "Login"; st.session_state.login_role = "Wholesaler"; st.rerun()
         with col3:
             st.markdown("""
             <div class="feature-card border-shop">
-                <div class="card-icon">🛒</div>
-                <div class="card-title">Retail POS</div>
+                <div class="card-icon">🛒</div><div class="card-title">Retail POS</div>
                 <div class="card-text">Lightning-fast universal barcode scanning, instant thermal receipts, and real-time inventory.</div>
             </div>
             """, unsafe_allow_html=True)
             if st.button("Shop POS Login", use_container_width=True): 
-                st.session_state.current_page = "Login"
-                st.session_state.login_role = "Shop"
-                st.rerun()
+                st.session_state.current_page = "Login"; st.session_state.login_role = "Shop"; st.rerun()
             
         st.markdown("""
         <div class="register-section">
             <h2 style='color: #1a1a1a; font-weight: 800; margin-bottom: 20px;'>Ready to transform your business?</h2>
-            <p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of modern businesses using Kulu ERP today. Get instant license key delivery via Email.</p>
+            <p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of modern businesses using Kulu ERP today.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -506,12 +474,10 @@ else:
             cc1, cc2 = st.columns(2)
             with cc1:
                 if st.button("🚀 Buy Software License", use_container_width=True, type="primary"): 
-                    st.session_state.current_page = "Register"
-                    st.rerun()
+                    st.session_state.current_page = "Register"; st.rerun()
             with cc2:
                 if st.button("🔑 Password Recovery", use_container_width=True): 
-                    st.session_state.current_page = "Forgot Password"
-                    st.rerun()
+                    st.session_state.current_page = "Forgot Password"; st.rerun()
                     
         st.markdown("<div class='footer'>© 2026 Kulu Smart Solutions Global. Engineered for Excellence.</div>", unsafe_allow_html=True)
 
@@ -535,56 +501,139 @@ else:
             
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button(f"🔑 Forgot Password ({st.session_state.login_role})", use_container_width=False):
-            st.session_state.current_page = "Forgot Password"
-            st.rerun()
+            st.session_state.current_page = "Forgot Password"; st.rerun()
 
+    # 🔴 100% AUTOMATIC REGISTRATION, PAYMENT & BILLING 🔴
     elif st.session_state.current_page == "Register":
-        if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
+        if st.button("⬅️ Back to Home"): 
+            st.session_state.current_page = "Home Ground"
+            if "reg_step" in st.session_state: del st.session_state.reg_step
+            st.rerun()
+            
         st.title("🛒 Buy Kulu ERP Software License")
-        st.info("Payment କଲା ମାତ୍ରେ ଲାଇସେନ୍ସ କି (License Key) ଆପଣଙ୍କ ଇମେଲ୍ କୁ ତୁରନ୍ତ ପଠାଯିବ।")
+        if "reg_step" not in st.session_state: st.session_state.reg_step = 1
+        if "reg_data" not in st.session_state: st.session_state.reg_data = {}
         
         settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
         gst_pct = settings[6]
-        
         packages = {
-            f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1], 10),
-            f"Monthly Plan (30 Days) - ₹{settings[2]}": ("Monthly", settings[2], 30),
-            f"6 Months Plan (180 Days) - ₹{settings[3]}": ("6 Months", settings[3], 180),
-            f"1 Year Plan (365 Days) - ₹{settings[4]}": ("1 Year", settings[4], 365),
-            f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5], 36500)
+            f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1]),
+            f"Monthly Plan (30 Days) - ₹{settings[2]}": ("Monthly", settings[2]),
+            f"6 Months Plan (180 Days) - ₹{settings[3]}": ("6 Months", settings[3]),
+            f"1 Year Plan (365 Days) - ₹{settings[4]}": ("1 Year", settings[4]),
+            f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5])
         }
         
-        with st.form("reg_form"):
+        if st.session_state.reg_step == 1:
+            st.subheader("Step 1: Business Details")
             r_role = st.selectbox("Registering As", ["Wholesaler", "Shop"])
-            r_name = st.text_input("Business Name")
+            r_name = st.text_input("Business / Shop Name")
+            r_owner = st.text_input("Owner Name")
             r_email = st.text_input("Email ID (License Key will be sent here)")
             r_pass = st.text_input("Create Password", type="password")
             
+            c1, c2 = st.columns(2)
+            with c1:
+                r_aadhar = st.text_input("Aadhar No. (Optional)")
+                r_address = st.text_area("Full Address (Optional)")
+            with c2:
+                r_pan_gst = st.text_input("PAN / GST No. (Optional)")
+                r_state = st.selectbox("State (Optional)", ["Select State"] + INDIAN_STATES)
+                
             p_sel = st.radio("Select License Package", list(packages.keys()))
-            pkg_name, pkg_price, pkg_days = packages[p_sel]
             
-            total_with_gst = pkg_price + (pkg_price * gst_pct / 100)
-            st.markdown(f"**Total Amount to Pay (Incl. GST): ₹ {total_with_gst:.2f}**")
-            
-            st.markdown(f"### 💳 Payment Gateway (Pay to UPI: `{settings[0]}`)")
-            r_utr = st.text_input("Enter UTR / Transaction No. (Required)")
-            
-            if st.form_submit_button("Submit Payment & Get License"):
-                if r_name and r_email and r_pass and r_utr:
-                    new_key = generate_license()
-                    exp_date = str(date.today() + timedelta(days=pkg_days))
-                    
+            if st.button("Next ➡️", type="primary"):
+                if r_name and r_email and r_pass and r_owner:
                     try:
-                        run_query("INSERT INTO users (name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                  (r_name, r_email, r_pass, r_role, 'Paid', 1, r_utr, total_with_gst, pkg_name, new_key, exp_date, 0))
-                        st.success("✅ Payment Successful! Your License Key has been generated.")
+                        run_query("INSERT INTO users (email) VALUES (?)", (r_email,)) 
+                        run_query("DELETE FROM users WHERE email=? AND password IS NULL", (r_email,)) 
                         
-                        subject = f"Your Kulu ERP {pkg_name} License Key"
-                        body = f"ନମସ୍କାର {r_name},\n\nଆପଣଙ୍କର Kulu Smart ERP ପ୍ୟାକେଜ୍ ({pkg_name}) ସଫଳତାର ସହ ରେଜିଷ୍ଟର୍ ହୋଇଛି!\n\n🔑 ଆପଣଙ୍କ License Key: {new_key}\n📅 Expiry Date: {exp_date}\n\nଦୟାକରି ସଫ୍ଟୱେର୍ ରେ ଲଗଇନ୍ କରି ଏହି କି (Key) ବ୍ୟବହାର କରି ଆକ୍ଟିଭେଟ୍ କରନ୍ତୁ।\n\nଧନ୍ୟବାଦ!"
-                        with st.spinner("Emailing your license key..."): send_real_email(r_email, subject, body)
-                        st.balloons(); st.info("📧 ଲାଇସେନ୍ସ କି ଆପଣଙ୍କ ଇମେଲ୍ କୁ ପଠାଯାଇଛି। ଦୟାକରି ଲଗଇନ୍ ପେଜ୍ କୁ ଯାଇ ନିଜ ଆକାଉଣ୍ଟ ଖୋଲନ୍ତୁ।")
-                    except sqlite3.IntegrityError: st.error("❌ ଏହି Email ପୂର୍ବରୁ ରେଜିଷ୍ଟର୍ ହୋଇସାରିଛି!")
-                else: st.warning("Please fill all details to complete payment.")
+                        pkg_name, pkg_price = packages[p_sel]
+                        total_with_gst = pkg_price + (pkg_price * gst_pct / 100)
+                        
+                        st.session_state.reg_data = {
+                            "role": r_role, "name": r_name, "owner": r_owner, "email": r_email, "pass": r_pass,
+                            "aadhar": r_aadhar, "pan_gst": r_pan_gst, "address": r_address, "state": r_state,
+                            "pkg_name": pkg_name, "total_amt": total_with_gst
+                        }
+                        st.session_state.reg_step = 2; st.rerun()
+                    except sqlite3.IntegrityError: st.error("❌ Email already registered!")
+                else: st.warning("Please fill Business Name, Owner Name, Email, and Password.")
+
+        elif st.session_state.reg_step == 2:
+            st.subheader("Step 2: Declaration & Terms")
+            st.info("Please read and accept the terms to proceed to payment.")
+            st.markdown("I hereby declare that all the information provided by me is true and correct. I agree to the terms and conditions of Kulu Smart ERP.")
+            agree = st.checkbox("I Agree")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("⬅️ Back"): st.session_state.reg_step = 1; st.rerun()
+            with c2:
+                if st.button("Proceed to Payment 💳", type="primary"):
+                    if agree: st.session_state.reg_step = 3; st.rerun()
+                    else: st.error("Please accept the declaration.")
+
+        elif st.session_state.reg_step == 3:
+            st.subheader("Step 3: Secure Payment & Auto Verification")
+            d = st.session_state.reg_data
+            st.markdown(f"**Total Amount Payable:** ₹ {d['total_amt']:.2f}")
+            
+            upi_url = f"upi://pay?pa={settings[0]}&pn=KuluERP&am={d['total_amt']:.2f}&cu=INR"
+            encoded_upi = urllib.parse.quote(upi_url)
+            qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={encoded_upi}"
+            
+            st.markdown(f"""
+            <div style="text-align: center; background: #fff; padding: 20px; border-radius: 10px; width: 250px; margin: auto; border: 2px solid #ddd;">
+                <img src="{qr_img_src}" alt="Scan to Pay">
+                <p style="font-weight: bold; margin-top: 10px;">Scan to Pay with Any UPI App</p>
+                <p style="color: red;">Pay to: {settings[0]}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            r_utr = st.text_input("Enter 12-Digit UTR / Ref No. (After successful payment)")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("⬅️ Back"): st.session_state.reg_step = 2; st.rerun()
+            with c2:
+                if st.button("Submit UTR & Auto Verify ✅", type="primary"):
+                    if r_utr:
+                        progress_text = "Verifying Payment Automatically... Please wait."
+                        my_bar = st.progress(0, text=progress_text)
+                        
+                        for percent_complete in range(30):
+                            time.sleep(1)
+                            my_bar.progress(int((percent_complete + 1) * 3.33), text=progress_text)
+                        my_bar.empty()
+                        
+                        # 🔴 AUTO APPROVE AND SAVE TO DB 🔴
+                        new_key = generate_license()
+                        exp_days = 10 if d['pkg_name']=="Demo" else 30 if d['pkg_name']=="Monthly" else 180 if d['pkg_name']=="6 Months" else 365 if d['pkg_name']=="1 Year" else 36500
+                        exp_date = str(date.today() + timedelta(days=exp_days))
+                        
+                        run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, 
+                                     aadhar, pan_gst, address, state, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) 
+                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                  (d['name'], d['owner'], d['email'], d['pass'], d['role'], 'Paid', 1, 
+                                   d['aadhar'], d['pan_gst'], d['address'], d['state'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0))
+                        
+                        # 🔴 AUTO EMAIL GENERATION 🔴
+                        subject = f"Welcome to Kulu ERP - Your {d['pkg_name']} License & Invoice"
+                        body = f"Hello {d['owner']},\n\nYour Payment (UTR: {r_utr}) has been Auto-Verified successfully!\n\n🔑 License Key: {new_key}\n📅 Expiry Date: {exp_date}\n\n--- INVOICE ---\nBusiness Name: {d['name']}\nAmount Paid: ₹{d['total_amt']}\n\nPlease login to activate your software.\n\nThanks,\nKulu Smart ERP"
+                        
+                        with st.spinner("Generating License and Sending Email..."):
+                            success = send_real_email(d['email'], subject, body)
+                            
+                        if success:
+                            st.success("✅ Payment Verified Automatically! Your License Key has been sent to your Email.")
+                        else:
+                            st.warning("⚠️ Payment Verified, BUT Email failed to send due to a Network Issue. Please contact Super Admin to get your License Key manually.")
+                            
+                        st.balloons()
+                        del st.session_state.reg_step
+                        del st.session_state.reg_data
+                    else: st.warning("Please enter UTR Number.")
 
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()

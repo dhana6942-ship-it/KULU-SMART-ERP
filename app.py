@@ -78,6 +78,18 @@ def init_db():
     try: c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
     except: pass
 
+    # 🔴 NEW COLUMNS FOR CUSTOMER DETAILS & REPRINT 🔴
+    tx_cols = [
+        ("customer_name", "TEXT"), 
+        ("customer_mobile", "TEXT"),
+        ("invoice_no", "TEXT"),
+        ("rate", "REAL"),
+        ("gst_pct", "REAL")
+    ]
+    for col, dtype in tx_cols:
+        try: c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
+        except: pass 
+
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
               ('Super Admin', 'dhana6942@gmail.com', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
               
@@ -105,7 +117,8 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
-def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str, shop_upi=""):
+# 🔴 ENHANCED BILL GENERATOR WITH CUSTOMER & INVOICE DETAILS 🔴
+def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str, shop_upi="", cust_name="", cust_mob="", inv_no=""):
     base_amt = rate * qty
     gst_amt = (base_amt * gst) / 100
     
@@ -121,6 +134,18 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
             <div style="font-size: 11px; font-weight: bold; margin-top: 5px;">Scan to Pay ₹ {total_price:.2f}</div>
         </div>
         """
+        
+    cust_info = ""
+    if cust_name or cust_mob:
+        cust_info = f"""
+        <div class="line"></div>
+        <div style="font-size: 11px; margin-bottom: 5px;">
+            <b>Customer:</b> {cust_name}<br>
+            <b>Mob:</b> {cust_mob}
+        </div>
+        """
+        
+    inv_info = f"<div class='center' style='font-size: 10px; margin-bottom: 5px;'>Inv No: {inv_no}</div>" if inv_no else ""
         
     return f"""
     <html>
@@ -138,7 +163,9 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
         <div class="receipt-box">
             <div class="center bold" style="font-size: 16px;">{shop_name}</div>
             <div class="center" style="font-size: 10px; margin-bottom: 5px;">Retail Invoice / Cash Memo</div>
+            {inv_info}
             <div class="center" style="font-size: 11px;">Date: {date_str}</div>
+            {cust_info}
             <div class="line"></div>
             <div><span class="bold">Item:</span> {item_name}</div>
             <table>
@@ -306,7 +333,7 @@ if st.session_state.logged_in:
                             st.session_state.admin_update_step = 1; st.success("Updated!"); st.rerun()
                         else: st.error("Wrong OTP!")
 
-        # ---------------- WHOLESALER & RETAIL SHOP (LICENSE CHECK FIRST) ----------------
+        # ---------------- WHOLESALER & RETAIL SHOP ----------------
         else:
             my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved FROM users WHERE email=?", (st.session_state.user_email,))[0]
             db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved = my_data
@@ -331,10 +358,11 @@ if st.session_state.logged_in:
             with c1: st.markdown(f'<h2>📊 Gateway of Kulu ERP - {shop_name} ({st.session_state.user_role})</h2>', unsafe_allow_html=True)
             with c2: st.info(f"Valid Till: {exp_date}")
             
+            # 🔴 NEW TABS CONFIGURATION 🔴
             if st.session_state.user_role == "Wholesaler":
-                tab_dash, tab_purch, tab_sales, tab_net, tab_prof = st.tabs(["📈 Dash", "📥 Purchase", "🧾 Sales", "🏪 Network", "⚙️ Settings"])
+                tab_dash, tab_purch, tab_sales, tab_hist, tab_net, tab_prof = st.tabs(["📈 Dash", "📥 Purchase", "🧾 Sales POS", "🖨️ Bill History", "🏪 Network", "⚙️ Settings"])
             else:
-                tab_dash, tab_purch, tab_sales, tab_prof = st.tabs(["📈 Dash", "📥 Purchase", "🧾 Sales", "⚙️ Settings"])
+                tab_dash, tab_purch, tab_sales, tab_hist, tab_prof = st.tabs(["📈 Dash", "📥 Purchase", "🧾 Sales POS", "🖨️ Bill History", "⚙️ Settings"])
             
             with tab_dash:
                 st.subheader("Financial Summary (Today)")
@@ -375,17 +403,25 @@ if st.session_state.logged_in:
                     run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (st.session_state.user_email, str(date.today()), i_name, i_qty, i_pprice*i_qty, 0, 0, 'Purchase'))
                     st.success(f"✅ Purchase Saved!")
 
-            # 🔴 ANTI DOUBLE-CLICK BILLING FIX 🔴
             with tab_sales:
                 st.subheader("🧾 Sales POS (Auto QR Bill)")
                 
+                # 🔴 ANTI-DOUBLE CLICK & SUCCESS VIEW 🔴
                 if "print_receipt" in st.session_state:
-                    st.success("✅ Sale Recorded Successfully! Please print your bill.")
+                    st.success("✅ Sale Recorded Successfully! Print your bill below.")
+                    components.html(st.session_state.print_receipt, height=600)
+                    st.markdown("---")
                     if st.button("➕ Create New Bill", type="primary"):
                         del st.session_state.print_receipt
                         st.rerun()
-                    components.html(st.session_state.print_receipt, height=600)
                 else:
+                    # 🔴 CUSTOMER DETAILS 🔴
+                    with st.expander("👤 Customer Details (Optional)", expanded=True):
+                        c1, c2 = st.columns(2)
+                        with c1: cust_name = st.text_input("Customer Name")
+                        with c2: cust_mob = st.text_input("Mobile Number")
+                        
+                    st.markdown("<br>", unsafe_allow_html=True)
                     scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="s_scan")
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, purchase_price, gst_rate, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     
@@ -412,13 +448,55 @@ if st.session_state.logged_in:
 
                         if st.button("🛒 Generate Sale Bill & Print", type="primary"):
                             if s_qty <= i_stock:
+                                inv_no = "INV-" + "".join(random.choices(string.digits, k=6))
                                 run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (s_qty, i_id))
-                                run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                          (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale'))
                                 
-                                st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()), shop_upi)
-                                st.rerun() # Forces page reload instantly to prevent double click
+                                # Save Transaction with Customer details & Invoice No
+                                run_query("""INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type, customer_name, customer_mobile, invoice_no, rate, gst_pct) 
+                                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                          (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale', cust_name, cust_mob, inv_no, s_price, s_gst if is_gst_bill else 0))
+                                          
+                                st.session_state.print_receipt = generate_receipt_html(
+                                    shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, 
+                                    s_final_price, str(date.today()), shop_upi, cust_name, cust_mob, inv_no
+                                )
+                                st.rerun()
                             else: st.error("Not enough stock!")
+
+            # 🔴 NEW BILL HISTORY & REPRINT TAB 🔴
+            with tab_hist:
+                st.subheader("🖨️ Bill History & Reprint")
+                st.write("ଏଠାରେ ଆପଣ କାଟିଥିବା ସବୁ ବିଲ୍ ଲିଷ୍ଟ୍ ଅଛି। ଯଦି ପ୍ରିଣ୍ଟ୍ ଖରାପ ହୁଏ, ତେବେ ସିଲେକ୍ଟ କରି 'Reprint' ଦବାନ୍ତୁ। ଏହାକଲେ ଡବଲ୍ ପ୍ରଫିଟ୍ କିମ୍ବା ଡବଲ୍ ସେଲ୍ ହେବନାହିଁ।")
+                
+                history = run_query("SELECT invoice_no, date, customer_name, customer_mobile, item_name, qty, rate, gst_pct, total_price FROM transactions WHERE shop_email=? AND trans_type='Sale' ORDER BY id DESC LIMIT 50", (st.session_state.user_email,))
+                
+                if history:
+                    history_clean = [h for h in history if h[0]] # Only show bills with invoice number
+                    if history_clean:
+                        df_hist = pd.DataFrame(history_clean, columns=["Invoice No", "Date", "Customer Name", "Mobile", "Item Name", "Qty", "Rate", "GST %", "Total (₹)"])
+                        st.dataframe(df_hist[["Invoice No", "Date", "Customer Name", "Item Name", "Total (₹)"]], use_container_width=True)
+                        
+                        c1, c2 = st.columns([2, 1])
+                        with c1:
+                            sel_inv = st.selectbox("🔍 Select Invoice to Reprint", [h[0] for h in history_clean])
+                        with c2:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            if st.button("🖨️ Reprint Selected Bill"):
+                                bill = [h for h in history_clean if h[0] == sel_inv][0]
+                                st.session_state.reprint_receipt = generate_receipt_html(
+                                    shop_name=shop_name, item_name=bill[4], qty=bill[5], rate=bill[6] or 0.0, 
+                                    gst=bill[7] or 0.0, total_price=bill[8], date_str=bill[1], shop_upi=shop_upi,
+                                    cust_name=bill[2], cust_mob=bill[3], inv_no=bill[0]
+                                )
+                                st.rerun()
+                                
+                if "reprint_receipt" in st.session_state:
+                    st.markdown("---")
+                    st.success("✅ Bill Loaded for Reprint!")
+                    components.html(st.session_state.reprint_receipt, height=600)
+                    if st.button("❌ Close Reprint View"):
+                        del st.session_state.reprint_receipt
+                        st.rerun()
 
             if st.session_state.user_role == "Wholesaler":
                 with tab_net:
@@ -665,19 +743,19 @@ else:
                     with st.spinner("Sending OTP to your email... Please wait."):
                         success = send_real_email(f_email, "Password Reset OTP", f"Your OTP is {st.session_state.forgot_otp}")
                     if success: st.session_state.forgot_step = 2; st.rerun()
-                    else: st.error("❌ Email pathavavama samasya aavi! Network check karo.")
-                else: st.error("❌ Aa Email system ma nathi.")
+                    else: st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ କିମ୍ବା ଆପ୍ ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
+                else: st.error("❌ ଏହି Email ଆମ ସିଷ୍ଟମ୍ ରେ ନାହିଁ।")
                     
         elif st.session_state.forgot_step == 2:
-            st.success(f"📧 Real OTP tamara {st.session_state.forgot_email} par mokalyo chhe! (Inbox/Spam check karo)")
+            st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.forgot_email} କୁ ପଠାଯାଇଛି! (Check Inbox/Spam)")
             e_otp = st.text_input("Enter 6-digit OTP")
             if st.button("Verify OTP"):
                 if e_otp == st.session_state.forgot_otp: st.session_state.forgot_step = 3; st.rerun()
-                else: st.error("❌ Khoto OTP!")
+                else: st.error("❌ ଭୁଲ୍ OTP!")
                     
         elif st.session_state.forgot_step == 3:
             new_pass = st.text_input("Enter New Password", type="password")
             if st.button("Update Password") and new_pass:
                 run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                st.success("✅ Password updated! 'Back to Home' par click kari login karo.")
+                st.success("✅ Password updated! Click 'Back to Home' to Login.")
                 st.session_state.forgot_step = 1

@@ -13,7 +13,6 @@ from email.mime.text import MIMEText
 # ==========================================
 def send_real_email(receiver_email, otp):
     sender_email = "dhana6942@gmail.com"
-    # Removing spaces from the app password for it to work properly
     app_password = "zvhddripvstjwyef" 
     
     msg = MIMEText(f"ନମସ୍କାର (Hello),\n\nଆପଣଙ୍କ Kulu Smart ERP ର ସିକ୍ୟୁରିଟି OTP ହେଉଛି: {otp}\n\nଦୟାକରି ଏହାକୁ କାହା ସହିତ ସେୟାର କରନ୍ତୁ ନାହିଁ।\n(Please do not share this OTP with anyone.)\n\nଧନ୍ୟବାଦ,\nKulu Smart ERP Team")
@@ -31,7 +30,7 @@ def send_real_email(receiver_email, otp):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP
+# 1. DATABASE SETUP (SUPER ADMIN UPDATED)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
@@ -65,8 +64,14 @@ def init_db():
     try: c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
     except: pass
 
+    # Insert New Super Admin with dhana6942@gmail.com
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
-              ('Super Admin', 'admin@kulusutar.in', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
+              ('Super Admin', 'dhana6942@gmail.com', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
+              
+    # Update if the old admin email still exists in case user didn't delete DB
+    try:
+        c.execute("UPDATE users SET email='dhana6942@gmail.com' WHERE email='admin@kulusutar.in' AND role='SuperAdmin'")
+    except: pass
               
     c.execute("INSERT OR IGNORE INTO admin_settings (id, upi_id, monthly_price, yearly_price, lifetime_price, soft_gst) VALUES (1, 'kulusutar@ybl', 499, 4999, 9999, 18)")
     

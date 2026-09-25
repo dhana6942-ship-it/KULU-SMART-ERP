@@ -99,7 +99,7 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, tot
     gst_html = f"<tr><td>Base Amount:</td><td class='right'>₹ {base_amt:.2f}</td></tr><tr><td>GST ({gst_pct}%):</td><td class='right'>(+) ₹ {gst_amt:.2f}</td></tr>" if gst_pct > 0 else ""
     return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
 
-# 🔴 NEW: PURCHASE REPORT HTML (FOR DAILY MATCHING) 🔴
+# 🔴 PURCHASE REPORT HTML 🔴
 def generate_purchase_report_html(shop_name, date_str, purchases):
     rows = ""
     tot_base = 0; tot_gst = 0; tot_net = 0
@@ -114,9 +114,62 @@ def generate_gst_report_html(df_gst, tot_gst, shop_name):
     for _, r in df_gst.iterrows(): rows += f"<tr><td>{r['Invoice']}</td><td>{r['Date']}</td><td>{r['Customer']}</td><td>₹{r['Base Value (₹)']:.2f}</td><td>{r['GST %']}%</td><td>₹{r['GST Amount (₹)']:.2f}</td><td>₹{r['Total Value (₹)']:.2f}</td></tr>"
     return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
 
+# ==========================================
+# 2. PAGE CONFIG & PREMIUM INVISIBLE UI CSS
+# ==========================================
 st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
-st.markdown("""<style>.hero-container { background: linear-gradient(-45deg, #0f2027, #203a43, #2c5364, #141E30); background-size: 400% 400%; animation: gradientBG 12s ease infinite; padding: 80px 20px; border-radius: 20px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); } @keyframes gradientBG { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} } .hero-title { font-size: 55px; font-weight: 900; margin-bottom: 15px; letter-spacing: 2px; text-transform: uppercase; text-shadow: 2px 2px 8px rgba(0,0,0,0.4); } .notice-board { background: #ffeb3b; color: #d32f2f; font-weight: bold; font-size: 18px; padding: 10px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 2px solid #fbc02d; } .feature-card { background: #ffffff; padding: 40px 25px; border-radius: 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-bottom: 20px; height: 100%; } .feature-card:hover { transform: translateY(-15px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); } .border-admin { border-top: 6px solid #FF416C; } .border-wholesale { border-top: 6px solid #4A00E0; } .border-shop { border-top: 6px solid #00b09b; } .card-icon { font-size: 65px; margin-bottom: 20px; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1)); } .card-title { font-size: 26px; font-weight: 800; color: #1a1a1a; margin-bottom: 12px; } .card-text { font-size: 16px; color: #666; line-height: 1.6; font-weight: 400; margin-bottom: 20px; } .register-section { background: rgba(255, 255, 255, 0.5); border: 1px solid #eaeaea; padding: 40px; border-radius: 20px; text-align: center; margin-top: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); } .footer { text-align: center; margin-top: 80px; padding-top: 25px; border-top: 1px solid #eaeaea; color: #a0a0a0; font-size: 14px; font-weight: 500; letter-spacing: 1px; }</style>""", unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    /* 🔴 HIDE ALL STREAMLIT BRANDING, MENUS & MANAGE APP BUTTONS 🔴 */
+    #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    .stDeployButton {display: none !important;}
+    [data-testid="stToolbar"] {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="manage-app-button"] {display: none !important;}
+    .st-emotion-cache-16txtl3 {padding-top: 0rem;}
+    
+    /* 🌟 NEW PREMIUM BEAUTIFUL DESIGN 🌟 */
+    .hero-container { 
+        background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); 
+        background-size: 400% 400%; animation: gradientBG 12s ease infinite; 
+        padding: 90px 20px; border-radius: 25px; color: white; text-align: center; 
+        margin-bottom: 30px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); 
+    }
+    @keyframes gradientBG { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
+    .hero-title { font-size: 60px; font-weight: 900; margin-bottom: 15px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 3px 3px 10px rgba(0,0,0,0.5); }
+    .hero-subtitle { font-size: 24px; font-weight: 300; opacity: 0.9; letter-spacing: 1.5px; }
+    
+    .notice-board { 
+        background: linear-gradient(90deg, #ffeb3b, #fbc02d); color: #d32f2f; 
+        font-weight: bold; font-size: 19px; padding: 12px; border-radius: 10px; 
+        margin-bottom: 30px; box-shadow: 0 8px 15px rgba(0,0,0,0.1); border: 2px solid #f9a825; 
+    }
+    
+    .feature-card { 
+        background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+        padding: 50px 30px; border-radius: 25px; text-align: center; 
+        box-shadow: 0 15px 35px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); 
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-bottom: 25px; height: 100%; 
+    }
+    .feature-card:hover { transform: translateY(-20px) scale(1.02); box-shadow: 0 30px 50px rgba(0,0,0,0.15); }
+    
+    .border-admin { border-top: 8px solid #ff0844; } 
+    .border-wholesale { border-top: 8px solid #0052D4; } 
+    .border-shop { border-top: 8px solid #11998e; }
+    
+    .card-icon { font-size: 75px; margin-bottom: 25px; filter: drop-shadow(3px 5px 8px rgba(0,0,0,0.15)); transition: transform 0.3s ease; }
+    .feature-card:hover .card-icon { transform: scale(1.15) rotate(5deg); }
+    
+    .card-title { font-size: 28px; font-weight: 800; color: #1a1a1a; margin-bottom: 15px; text-transform: uppercase;}
+    .card-text { font-size: 16px; color: #555; line-height: 1.7; font-weight: 500; margin-bottom: 25px; }
+    
+    .register-section { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 50px; border-radius: 25px; text-align: center; margin-top: 30px; box-shadow: 0 15px 30px rgba(0,0,0,0.08); border: 1px solid #e0e0e0; }
+    .footer { text-align: center; margin-top: 80px; padding-top: 25px; border-top: 1px solid #eaeaea; color: #999; font-size: 15px; font-weight: 600; letter-spacing: 1px; padding-bottom: 20px;}
+    </style>
+""", unsafe_allow_html=True)
 
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Home Ground"
@@ -224,7 +277,6 @@ if st.session_state.logged_in:
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Total Sales", f"₹ {float(sales_data or 0):.2f}"); c2.metric("Total Purchases", f"₹ {float(purch_data or 0):.2f}"); c3.metric("Net Profit", f"₹ {float(profit_data or 0):.2f}")
 
-            # 🔴 ADVANCED STOCK TAB CALCULATION 🔴
             with tab_stock:
                 st.subheader("📦 Live Stock Register & Valuation")
                 inv_data = run_query("SELECT item_name, stock, purchase_price, selling_price FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
@@ -240,10 +292,7 @@ if st.session_state.logged_in:
                     for row in inv_data:
                         i_name = row[0]; curr_stock = row[1]; buy_price = row[2]; sell_price = row[3]
                         stock_in = purchases_dict.get(i_name, 0); stock_out = sales_dict.get(i_name, 0)
-                        
-                        val = curr_stock * buy_price
-                        out_val = stock_out * sell_price
-                        
+                        val = curr_stock * buy_price; out_val = stock_out * sell_price
                         tot_stock_qty += curr_stock; tot_stock_val += val; tot_out_qty += stock_out; tot_out_val += out_val
                         stock_list.append([i_name, stock_in, stock_out, curr_stock, buy_price, val])
                         
@@ -252,13 +301,10 @@ if st.session_state.logged_in:
                     c2.metric("Total Stock Amount (Value)", f"₹ {tot_stock_val:.2f}")
                     c3.metric("Today Out Stock (Sold Qty)", f"{tot_out_qty}")
                     c4.metric("Today Out Amount (Sold Value)", f"₹ {tot_out_val:.2f}")
-                    
                     st.markdown("---")
-                    df_stock = pd.DataFrame(stock_list, columns=["Product Name", "Today IN (Qty)", "Today OUT (Qty)", "Current Stock", "Buy Rate (₹)", "Total Stock Value (₹)"])
-                    st.dataframe(df_stock, use_container_width=True)
+                    st.dataframe(pd.DataFrame(stock_list, columns=["Product Name", "Today IN (Qty)", "Today OUT (Qty)", "Current Stock", "Buy Rate (₹)", "Total Stock Value (₹)"]), use_container_width=True)
                 else: st.info("କୌଣସି ଷ୍ଟକ୍ ନାହିଁ।")
 
-            # 🔴 ENHANCED PURCHASE WITH GST & PRINT FEATURE 🔴
             with tab_purch:
                 st.subheader("📥 Add Inventory (Purchase Entry)")
                 i_bcode = st.text_input("||||| Scan Barcode Here (Use Machine) 👇", key="p_bcode")
@@ -271,17 +317,13 @@ if st.session_state.logged_in:
                 with c2: i_qty = st.number_input("Qty", min_value=1, value=1, key="p_qty")
                 with c3: 
                     gst_options = {"No GST (0%)": 0, "5% GST": 5, "12% GST": 12, "18% GST": 18, "28% GST": 28}
-                    p_gst_label = st.selectbox("Purchase GST Slab", list(gst_options.keys()))
-                    p_gst_pct = gst_options[p_gst_label]
+                    p_gst_pct = gst_options[st.selectbox("Purchase GST Slab", list(gst_options.keys()))]
                 with c4:
                     i_pprice = st.number_input("Buy Rate Base (₹)", min_value=0.0, value=def_buy, step=10.0, key="p_pprice")
                     i_sprice = st.number_input("Sell Rate (₹)", min_value=0.0, value=def_sell if def_sell>0 else float(i_pprice + (i_pprice*0.18)), step=10.0, key="p_sprice")
                     
                 if st.button("💾 Save Purchase & Add to Report", use_container_width=True, type="primary") and i_name:
-                    p_base = i_pprice * i_qty
-                    p_gst_amt = (p_base * p_gst_pct) / 100
-                    p_final_total = p_base + p_gst_amt
-                    
+                    p_base = i_pprice * i_qty; p_gst_amt = (p_base * p_gst_pct) / 100; p_final_total = p_base + p_gst_amt
                     if existing_item: run_query("UPDATE inventory SET stock = stock + ?, purchase_price=?, selling_price=? WHERE barcode=? AND shop_email=?", (i_qty, i_pprice, i_sprice, i_bcode, st.session_state.user_email))
                     else: run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)", (st.session_state.user_email, i_name, i_pprice, i_sprice, i_qty, p_gst_pct, i_bcode))
                     run_query("""INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type, rate, gst_pct, gst_amt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (st.session_state.user_email, str(date.today()), i_name, i_qty, p_final_total, 0, 1 if p_gst_pct>0 else 0, 'Purchase', i_pprice, p_gst_pct, p_gst_amt))
@@ -291,8 +333,7 @@ if st.session_state.logged_in:
                 st.subheader("🖨️ Print Today's Purchase Entry (Match with Seller Bill)")
                 today_purchases = run_query("SELECT item_name, qty, rate, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND date=? AND trans_type='Purchase'", (st.session_state.user_email, str(date.today())))
                 if today_purchases:
-                    df_p = pd.DataFrame(today_purchases, columns=["Item", "Qty", "Buy Rate", "GST %", "GST Amt", "Total"])
-                    st.dataframe(df_p, use_container_width=True)
+                    st.dataframe(pd.DataFrame(today_purchases, columns=["Item", "Qty", "Buy Rate", "GST %", "GST Amt", "Total"]), use_container_width=True)
                     if st.button("🖨️ Print Daily Purchase Report"):
                         st.session_state.purch_print = generate_purchase_report_html(shop_name, str(date.today()), today_purchases); st.rerun()
                 if "purch_print" in st.session_state:
@@ -327,8 +368,7 @@ if st.session_state.logged_in:
                         with col2: s_price = st.number_input("Rate (₹)", value=float(default_sprice))
                         with col3: 
                             gst_options = {"No GST (0%)": 0, "5% GST": 5, "12% GST": 12, "18% GST": 18, "28% GST": 28}
-                            sel_gst_label = st.selectbox("Select GST Slab", list(gst_options.keys()))
-                            s_gst_pct = gst_options[sel_gst_label]
+                            s_gst_pct = gst_options[st.selectbox("Select GST Slab", list(gst_options.keys()))]
                         
                         s_base = s_price * s_qty
                         if s_gst_pct > 0: gst_amt = (s_base * s_gst_pct) / 100; s_final_price = s_base + gst_amt; is_gst_bill = 1
@@ -351,8 +391,7 @@ if st.session_state.logged_in:
                 if history:
                     history_clean = [h for h in history if h[0]]
                     if history_clean:
-                        df_hist = pd.DataFrame(history_clean, columns=["Invoice No", "Date", "Customer", "Item", "Qty", "Rate", "GST %", "Total (₹)", "GST Amt", "Mob"])
-                        st.dataframe(df_hist[["Invoice No", "Date", "Customer", "Item", "Total (₹)"]], use_container_width=True)
+                        st.dataframe(pd.DataFrame(history_clean, columns=["Invoice No", "Date", "Customer", "Item", "Qty", "Rate", "GST %", "Total (₹)", "GST Amt", "Mob"])[["Invoice No", "Date", "Customer", "Item", "Total (₹)"]], use_container_width=True)
                         c1, c2 = st.columns([2, 1])
                         with c1: sel_inv = st.selectbox("🔍 Select Invoice to Reprint", [h[0] for h in history_clean])
                         with c2:
@@ -403,22 +442,25 @@ else:
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("""<div class="feature-card border-admin"><div class="card-icon">👑</div><div class="card-title">Super Admin</div></div>""", unsafe_allow_html=True)
+            st.markdown("""<div class="feature-card border-admin"><div class="card-icon">👑</div><div class="card-title">Super Admin</div><div class="card-text">Control software licensing and global system settings.</div></div>""", unsafe_allow_html=True)
             if st.button("Secure Admin Login", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "SuperAdmin"; st.rerun()
         with col2:
-            st.markdown("""<div class="feature-card border-wholesale"><div class="card-icon">🏢</div><div class="card-title">Wholesale Hub</div></div>""", unsafe_allow_html=True)
+            st.markdown("""<div class="feature-card border-wholesale"><div class="card-icon">🏢</div><div class="card-title">Wholesale Hub</div><div class="card-text">Manage massive B2B sales and track retailer network.</div></div>""", unsafe_allow_html=True)
             if st.button("Wholesaler Portal", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Wholesaler"; st.rerun()
         with col3:
-            st.markdown("""<div class="feature-card border-shop"><div class="card-icon">🛒</div><div class="card-title">Retail POS</div></div>""", unsafe_allow_html=True)
+            st.markdown("""<div class="feature-card border-shop"><div class="card-icon">🛒</div><div class="card-title">Retail POS</div><div class="card-text">Lightning fast barcode billing & smart inventory tools.</div></div>""", unsafe_allow_html=True)
             if st.button("Shop POS Login", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Shop"; st.rerun()
             
+        st.markdown("""<div class="register-section"><h2 style='color: #1a1a1a; font-weight: 800; margin-bottom: 20px;'>Ready to Transform Your Business?</h2><p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of businesses using Kulu Smart ERP today.</p>""", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([1, 2, 1])
         with c2:
             cc1, cc2 = st.columns(2)
             with cc1:
-                if st.button("🚀 Buy License", use_container_width=True, type="primary"): st.session_state.current_page = "Register"; st.rerun()
+                if st.button("🚀 Buy Software License", use_container_width=True, type="primary"): st.session_state.current_page = "Register"; st.rerun()
             with cc2:
                 if st.button("🔑 Password Recovery", use_container_width=True): st.session_state.current_page = "Forgot Password"; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<div class='footer'>© 2026 Kulu Smart Solutions Global. Engineered for Excellence.</div>", unsafe_allow_html=True)
 
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()

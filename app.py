@@ -134,8 +134,15 @@ st.markdown("""
     .stAppDeployButton, [data-testid="stAppDeployButton"], [data-testid="manage-app-button"] {display: none !important; visibility: hidden !important;}
     .viewerBadge_container, .viewerBadge_link, div[class*="viewerBadge"], div[class*="manage-app"] {display: none !important; visibility: hidden !important;}
     iframe[src*="badge"] {display: none !important; visibility: hidden !important;}
+    
+    /* 🔴 HIDE STREAMLIT BRANDING BADGE (CORNER WATERMARK) 🔴 */
+    .stDecoration {display: none !important;}
+    footer {visibility: hidden !important; display: none !important;}
+    .viewerBadge_link__1S_gx {display: none !important; visibility: hidden !important;}
+    div[data-testid="stStatusWidget"] {visibility: hidden !important; display: none !important;}
+    #root > div:last-child > div:last-child {display: none !important; visibility: hidden !important;}
+    
     [data-testid="stToolbar"] {display: none !important; visibility: hidden !important;}
-    [data-testid="stDecoration"] {display: none !important; visibility: hidden !important;}
     .st-emotion-cache-16txtl3 {padding-top: 0rem;}
     
     .stButton > button {

@@ -210,91 +210,83 @@ if st.session_state.logged_in:
                         st.markdown("---")
                 else: st.info("No clients have uploaded their shop photos yet.")
 
-        # ---------------- WHOLESALER / SHOP DASHBOARD ----------------
-        else:
+        # ---------------- SEPARATE WHOLESALER DASHBOARD ----------------
+        elif st.session_state.user_role == "Wholesaler":
             my_data = run_query("SELECT license_key, package_type, shop_photo, name FROM users WHERE email=?", (st.session_state.user_email,))[0]
             
             c1, c2 = st.columns([3, 1])
             with c1:
-                st.title(f"🏢 {my_data[3]} ({st.session_state.user_role})")
+                st.title(f"🏢 Wholesaler Master Dashboard - {my_data[3]}")
                 st.info(f"**License Key:** {my_data[0] if my_data[0] else 'Pending Approval'} | **Package:** {my_data[1]}")
             with c2:
                 if my_data[2]: st.image(my_data[2], width=120)
-                else: st.write("📷 No Shop Photo")
+                else: st.write("📷 No Profile Photo")
             
             if my_data[0] is None:
-                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ। ଦୟାକରି License Key ପାଇବା ପର୍ଯ୍ୟନ୍ତ ଅପେକ୍ଷା କରନ୍ତୁ।")
+                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
             else:
-                tab1, tab2, tab3, tab4 = st.tabs(["📊 Business Stats", "📦 Manage Inventory", "🧾 Smart Billing", "📸 Shop Photo"])
+                tab1, tab2, tab3, tab4 = st.tabs(["🌐 Wholesale Stats", "📦 Master Inventory", "🚛 Wholesale Sales Entry", "📸 Profile Photo"])
                 
                 with tab1:
-                    st.subheader("📊 Today's Performance")
+                    st.subheader("🌐 Today's Wholesale Performance")
                     today_str = str(date.today())
                     sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND date=?", (st.session_state.user_email, today_str))[0]
                     
                     col1, col2 = st.columns(2)
-                    col1.metric("Today's Total Sales", f"₹ {sales[0] if sales[0] else 0.0}")
+                    col1.metric("Today's B2B Sales", f"₹ {sales[0] if sales[0] else 0.0}")
                     col2.metric("Today's Net Profit", f"₹ {sales[1] if sales[1] else 0.0}")
                     
                     st.markdown("---")
-                    st.subheader("Recent Transactions")
+                    st.subheader("Recent Wholesale Dispatches")
                     recent_txn = run_query("SELECT date, item_name, qty, total_price, profit, is_gst FROM transactions WHERE shop_email=? ORDER BY id DESC LIMIT 10", (st.session_state.user_email,))
                     if recent_txn:
                         df_txn = pd.DataFrame(recent_txn, columns=["Date", "Item", "Qty", "Total (₹)", "Profit (₹)", "GST Bill?"])
                         df_txn["GST Bill?"] = df_txn["GST Bill?"].apply(lambda x: "Yes" if x==1 else "No")
                         st.dataframe(df_txn, use_container_width=True)
-                    else: st.info("No sales recorded yet.")
+                    else: st.info("No wholesale transactions yet.")
 
                 with tab2:
-                    st.subheader("📦 Add New Product to Stock")
-                    
-                    # 🔴 NAVIN LIVE AUTO-CALCULATION UPDATE 🔴
+                    st.subheader("📦 Add to Master Wholesale Stock")
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        i_name = st.text_input("Product Name")
-                        i_stock = st.number_input("Stock Quantity", min_value=1, value=1)
+                        i_name = st.text_input("Product Name", key="w_name")
+                        i_stock = st.number_input("Master Stock Quantity", min_value=1, value=1, key="w_qty")
                     with col2:
-                        i_pprice = st.number_input("Purchase Price (₹)", min_value=0.0, value=0.0, step=10.0)
-                        i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0, step=1.0)
-                        
+                        i_pprice = st.number_input("Purchase Price (₹)", min_value=0.0, value=0.0, step=10.0, key="w_pprice")
+                        i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0, step=1.0, key="w_gst")
                     auto_sell_price = i_pprice + (i_pprice * i_gst / 100)
-                    
                     with col3:
                         st.info(f"💡 Auto GST Price: ₹ {auto_sell_price:.2f}")
-                        i_sprice = st.number_input("Final Selling Price (₹)", min_value=0.0, value=float(auto_sell_price), step=10.0)
+                        i_sprice = st.number_input("Wholesale Selling Price (₹)", min_value=0.0, value=float(auto_sell_price), step=10.0, key="w_sprice")
                         
-                    if st.button("➕ Add to Inventory", use_container_width=True):
+                    if st.button("➕ Add to Master Stock", use_container_width=True):
                         if i_name and i_sprice > i_pprice:
                             run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate) VALUES (?, ?, ?, ?, ?, ?)",
                                       (st.session_state.user_email, i_name, i_pprice, i_sprice, i_stock, i_gst))
-                            st.success(f"✅ {i_name} added to stock!")
+                            st.success(f"✅ {i_name} added to Master Stock!")
                             st.rerun()
-                        elif i_sprice <= i_pprice:
-                            st.error("❌ Selling Price must be greater than Purchase Price.")
-                        else:
-                            st.error("❌ Please enter Product Name.")
+                        elif i_sprice <= i_pprice: st.error("❌ Selling Price must be greater than Purchase Price.")
+                        else: st.error("❌ Please enter Product Name.")
                                 
                     st.markdown("---")
-                    st.subheader("Current Available Stock")
+                    st.subheader("Current Master Stock")
                     stock_data = run_query("SELECT id, item_name, purchase_price, selling_price, stock, gst_rate FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
                     if stock_data:
                         df_stock = pd.DataFrame(stock_data, columns=["ID", "Item Name", "Purchase (₹)", "Selling (₹)", "Available Stock", "GST %"])
                         st.dataframe(df_stock, use_container_width=True)
-                    else: st.info("Inventory is empty. Please add products above.")
+                    else: st.info("Master inventory is empty.")
 
                 with tab3:
-                    st.subheader("🧾 Create New Live Bill")
+                    st.subheader("🚛 Wholesale Sales Entry (B2B Bulk Bill)")
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     
                     if stock_items:
                         item_dict = {f"{item[1]} (Stock: {item[3]}) - ₹{item[2]}": item for item in stock_items}
-                        sel_item = st.selectbox("Select Product to Sell", list(item_dict.keys()))
+                        sel_item = st.selectbox("Select Product to Dispatch", list(item_dict.keys()), key="w_sel")
                         
                         col1, col2 = st.columns(2)
-                        with col1:
-                            b_qty = st.number_input("Quantity", min_value=1, value=1)
-                        with col2:
-                            is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)", value=True)
+                        with col1: b_qty = st.number_input("Bulk Quantity", min_value=1, value=1, key="w_bqty")
+                        with col2: is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)", value=True, key="w_gstchk")
                             
                         item_data = item_dict[sel_item]
                         i_id, i_name, i_sprice, i_stock, i_gst, i_pprice = item_data
@@ -313,22 +305,21 @@ if st.session_state.logged_in:
                             
                         profit = final_price - total_cost
 
-                        if st.button("🧾 Generate Bill & Sell", use_container_width=True):
+                        if st.button("🚛 Generate Wholesale Bill & Dispatch", use_container_width=True):
                             if b_qty <= i_stock:
                                 run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (b_qty, i_id))
                                 run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst) VALUES (?, ?, ?, ?, ?, ?, ?)",
                                           (st.session_state.user_email, str(date.today()), i_name, b_qty, final_price, profit, 1 if is_gst_bill else 0))
-                                st.success(f"✅ Bill Generated! Total Paid: ₹ {final_price:.2f}")
+                                st.success(f"✅ Wholesale Dispatch Successful! Total: ₹ {final_price:.2f}")
                                 st.balloons()
-                            else:
-                                st.error("❌ Not enough stock available!")
-                    else: st.warning("No stock available! Please add products in the 'Manage Inventory' tab first.")
+                            else: st.error("❌ Not enough stock available!")
+                    else: st.warning("No master stock available!")
 
                 with tab4:
-                    st.subheader("📸 Set Your Profile / Shop Photo")
-                    uploaded_photo = st.file_uploader("Choose a valid image file", type=["jpg", "jpeg", "png"])
+                    st.subheader("📸 Set Profile Photo")
+                    uploaded_photo = st.file_uploader("Choose a valid image file", type=["jpg", "jpeg", "png"], key="w_up")
                     if uploaded_photo is not None:
-                        if st.button("💾 Save Photo"):
+                        if st.button("💾 Save Photo", key="w_save"):
                             photo_bytes = uploaded_photo.getvalue()
                             run_query("UPDATE users SET shop_photo=? WHERE email=?", (photo_bytes, st.session_state.user_email))
                             st.success("🎉 Photo successfully uploaded!")
@@ -337,7 +328,130 @@ if st.session_state.logged_in:
                         st.markdown("---")
                         st.write("### Your Current Photo:")
                         st.image(my_data[2], width=300)
-                        if st.button("🗑️ Delete My Photo"):
+                        if st.button("🗑️ Delete My Photo", key="w_del"):
+                            run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (st.session_state.user_email,))
+                            st.success("Your photo has been deleted.")
+                            st.rerun()
+
+        # ---------------- SEPARATE RETAIL SHOP DASHBOARD ----------------
+        elif st.session_state.user_role == "Shop":
+            my_data = run_query("SELECT license_key, package_type, shop_photo, name FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.title(f"🏪 Retail Shop Billing - {my_data[3]}")
+                st.info(f"**License Key:** {my_data[0] if my_data[0] else 'Pending Approval'} | **Package:** {my_data[1]}")
+            with c2:
+                if my_data[2]: st.image(my_data[2], width=120)
+                else: st.write("📷 No Shop Photo")
+            
+            if my_data[0] is None:
+                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
+            else:
+                tab1, tab2, tab3, tab4 = st.tabs(["📊 Daily Stats", "📦 Local Inventory", "🧾 Retail Sales Entry", "📸 Shop Photo"])
+                
+                with tab1:
+                    st.subheader("📊 Today's Retail Performance")
+                    today_str = str(date.today())
+                    sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND date=?", (st.session_state.user_email, today_str))[0]
+                    
+                    col1, col2 = st.columns(2)
+                    col1.metric("Today's B2C Sales", f"₹ {sales[0] if sales[0] else 0.0}")
+                    col2.metric("Today's Net Profit", f"₹ {sales[1] if sales[1] else 0.0}")
+                    
+                    st.markdown("---")
+                    st.subheader("Recent Retail Bills")
+                    recent_txn = run_query("SELECT date, item_name, qty, total_price, profit, is_gst FROM transactions WHERE shop_email=? ORDER BY id DESC LIMIT 10", (st.session_state.user_email,))
+                    if recent_txn:
+                        df_txn = pd.DataFrame(recent_txn, columns=["Date", "Item", "Qty", "Total (₹)", "Profit (₹)", "GST Bill?"])
+                        df_txn["GST Bill?"] = df_txn["GST Bill?"].apply(lambda x: "Yes" if x==1 else "No")
+                        st.dataframe(df_txn, use_container_width=True)
+                    else: st.info("No sales recorded yet.")
+
+                with tab2:
+                    st.subheader("📦 Add to Local Shop Stock")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        i_name = st.text_input("Product Name", key="s_name")
+                        i_stock = st.number_input("Local Stock Quantity", min_value=1, value=1, key="s_qty")
+                    with col2:
+                        i_pprice = st.number_input("Purchase Price (₹)", min_value=0.0, value=0.0, step=10.0, key="s_pprice")
+                        i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0, step=1.0, key="s_gst")
+                    auto_sell_price = i_pprice + (i_pprice * i_gst / 100)
+                    with col3:
+                        st.info(f"💡 Auto GST Price: ₹ {auto_sell_price:.2f}")
+                        i_sprice = st.number_input("Retail Selling Price (₹)", min_value=0.0, value=float(auto_sell_price), step=10.0, key="s_sprice")
+                        
+                    if st.button("➕ Add to Local Stock", use_container_width=True):
+                        if i_name and i_sprice > i_pprice:
+                            run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate) VALUES (?, ?, ?, ?, ?, ?)",
+                                      (st.session_state.user_email, i_name, i_pprice, i_sprice, i_stock, i_gst))
+                            st.success(f"✅ {i_name} added to local stock!")
+                            st.rerun()
+                        elif i_sprice <= i_pprice: st.error("❌ Selling Price must be greater than Purchase Price.")
+                        else: st.error("❌ Please enter Product Name.")
+                                
+                    st.markdown("---")
+                    st.subheader("Current Local Stock")
+                    stock_data = run_query("SELECT id, item_name, purchase_price, selling_price, stock, gst_rate FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
+                    if stock_data:
+                        df_stock = pd.DataFrame(stock_data, columns=["ID", "Item Name", "Purchase (₹)", "Retail (₹)", "Available Stock", "GST %"])
+                        st.dataframe(df_stock, use_container_width=True)
+                    else: st.info("Local inventory is empty.")
+
+                with tab3:
+                    st.subheader("🧾 Retail Sales Entry (B2C Live Bill)")
+                    stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
+                    
+                    if stock_items:
+                        item_dict = {f"{item[1]} (Stock: {item[3]}) - ₹{item[2]}": item for item in stock_items}
+                        sel_item = st.selectbox("Select Product for Customer", list(item_dict.keys()), key="s_sel")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1: b_qty = st.number_input("Quantity", min_value=1, value=1, key="s_bqty")
+                        with col2: is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)", value=True, key="s_gstchk")
+                            
+                        item_data = item_dict[sel_item]
+                        i_id, i_name, i_sprice, i_stock, i_gst, i_pprice = item_data
+                        
+                        base_total = i_sprice * b_qty
+                        total_cost = i_pprice * b_qty
+                        
+                        st.markdown("---")
+                        if is_gst_bill:
+                            tax_amount = (base_total * i_gst) / 100
+                            final_price = base_total + tax_amount
+                            st.success(f"💰 **Live Auto-Calculate:** ₹ {base_total} (Base) + ₹ {tax_amount:.2f} ({i_gst}% GST) = **₹ {final_price:.2f}**")
+                        else:
+                            final_price = base_total
+                            st.info(f"💰 **Live Auto-Calculate:** **₹ {final_price:.2f}** (No GST applied)")
+                            
+                        profit = final_price - total_cost
+
+                        if st.button("🧾 Generate Retail Bill", use_container_width=True):
+                            if b_qty <= i_stock:
+                                run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (b_qty, i_id))
+                                run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                          (st.session_state.user_email, str(date.today()), i_name, b_qty, final_price, profit, 1 if is_gst_bill else 0))
+                                st.success(f"✅ Retail Bill Generated! Total: ₹ {final_price:.2f}")
+                                st.balloons()
+                            else: st.error("❌ Not enough stock available!")
+                    else: st.warning("No local stock available!")
+
+                with tab4:
+                    st.subheader("📸 Set Shop Photo")
+                    uploaded_photo = st.file_uploader("Choose a valid image file", type=["jpg", "jpeg", "png"], key="s_up")
+                    if uploaded_photo is not None:
+                        if st.button("💾 Save Photo", key="s_save"):
+                            photo_bytes = uploaded_photo.getvalue()
+                            run_query("UPDATE users SET shop_photo=? WHERE email=?", (photo_bytes, st.session_state.user_email))
+                            st.success("🎉 Photo successfully uploaded!")
+                            st.rerun()
+                    if my_data[2]:
+                        st.markdown("---")
+                        st.write("### Your Current Photo:")
+                        st.image(my_data[2], width=300)
+                        if st.button("🗑️ Delete My Photo", key="s_del"):
                             run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (st.session_state.user_email,))
                             st.success("Your photo has been deleted.")
                             st.rerun()

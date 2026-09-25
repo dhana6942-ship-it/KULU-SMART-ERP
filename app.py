@@ -7,7 +7,7 @@ from datetime import date
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. DATABASE SETUP (Added trans_type for Sales/Purchase)
+# 1. DATABASE SETUP
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
@@ -25,7 +25,7 @@ def init_db():
                  
     c.execute('''CREATE TABLE IF NOT EXISTS transactions
                  (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
-    
+                 
     cols_to_add = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), 
         ("package_type", "TEXT"), ("license_key", "TEXT"), 
@@ -63,26 +63,56 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
+# 🔴 ADVANCED THERMAL PRINTER CSS (Universal Fitting for 58mm & 80mm Portable Printers) 🔴
 def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str):
     return f"""
-    <div id="receipt" style="width: 300px; padding: 15px; border: 2px dashed #000; font-family: 'Courier New', Courier, monospace; margin: auto; background: #fff; color: #000;">
-        <h3 style="text-align: center; margin: 0 0 10px 0;">{shop_name}</h3>
-        <p style="text-align: center; font-size: 12px; margin: 0 0 15px 0;">Date: {date_str}<br>Cash Memo / Retail Invoice</p>
-        <hr style="border-top: 1px dashed #000;">
-        <table style="width: 100%; font-size: 14px;">
-            <tr><td colspan="2"><b>Item:</b> {item_name}</td></tr>
-            <tr><td><b>Qty:</b> {qty}</td><td style="text-align: right;"><b>Rate:</b> {rate}</td></tr>
-            <tr><td><b>GST (%):</b> {gst}%</td><td style="text-align: right;"></td></tr>
-        </table>
-        <hr style="border-top: 1px dashed #000;">
-        <h3 style="text-align: right; margin: 10px 0 0 0;">Total: ₹ {total_price:.2f}</h3>
-        <p style="text-align: center; font-size: 12px; margin-top: 15px;">Thank You! Visit Again.</p>
-    </div>
-    <div style="text-align: center; margin-top: 15px;">
-        <button onclick="var printContents = document.getElementById('receipt').innerHTML; var originalContents = document.body.innerHTML; document.body.innerHTML = printContents; window.print(); document.body.innerHTML = originalContents; window.location.reload();" style="padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px;">
-            🖨️ Print Receipt
-        </button>
-    </div>
+    <html>
+    <head>
+    <style>
+        /* This perfectly fits all portable thermal machines */
+        @media print {{
+            @page {{ margin: 0; size: 58mm 100mm; }}
+            body {{ margin: 0; padding: 0; background: #fff; }}
+            #print-btn {{ display: none; }}
+        }}
+        body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }}
+        .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }}
+        .center {{ text-align: center; }}
+        .line {{ border-top: 1px dashed #000; margin: 8px 0; }}
+        .bold {{ font-weight: bold; }}
+        table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }}
+        .right {{ text-align: right; }}
+        .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}
+    </style>
+    </head>
+    <body>
+        <div class="receipt-box">
+            <div class="center bold" style="font-size: 16px;">{shop_name}</div>
+            <div class="center" style="font-size: 10px; margin-bottom: 5px;">Retail Invoice / Cash Memo</div>
+            <div class="center" style="font-size: 11px;">Date: {date_str}</div>
+            <div class="line"></div>
+            <div><span class="bold">Item:</span> {item_name}</div>
+            <table>
+                <tr><td>Qty: {qty}</td><td class="right">Rate: {rate}</td></tr>
+                <tr><td>GST: {gst}%</td><td class="right"></td></tr>
+            </table>
+            <div class="line"></div>
+            <div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>
+            <div class="line"></div>
+            <div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div>
+        </div>
+        
+        <div id="print-btn">
+            <button class="btn" onclick="window.print()">
+                🖨️ Print Receipt (POS Machine)
+            </button>
+            <br><br>
+            <button onclick="window.parent.location.reload()" style="background: transparent; border: none; color: blue; text-decoration: underline; cursor: pointer;">
+                Cancel / New Bill
+            </button>
+        </div>
+    </body>
+    </html>
     """
 
 # ==========================================
@@ -127,7 +157,7 @@ if st.session_state.logged_in:
                 if my_data[2]: st.image(my_data[2], width=80)
             
             if my_data[0] is None:
-                st.warning("⚠️ Tumcha account ajun Super Admin kadun approve zala nahi.")
+                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
             else:
                 tab_dash, tab_purch, tab_sales, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "📄 Balance Sheet & P&L"])
                 
@@ -144,7 +174,7 @@ if st.session_state.logged_in:
                     c2.metric("Today's Total Purchases", f"₹ {purch_data if purch_data else 0.0}")
                     c3.metric("Today's Net Profit", f"₹ {profit_data if profit_data else 0.0}")
 
-                # --- TAB 2: PURCHASE ENTRY (WITH AUTO GST) ---
+                # --- TAB 2: PURCHASE ENTRY (WITH AUTO GST & BARCODE) ---
                 with tab_purch:
                     st.subheader("📥 Purchase Entry (Kharedi & Stock In)")
                     st.write("Scan Barcode and enter purchase details. Purchase GST will be auto-calculated.")
@@ -160,7 +190,6 @@ if st.session_state.logged_in:
                         auto_sell = i_pprice + (i_pprice * i_gst / 100)
                         i_sprice = st.number_input("Set Selling Rate (₹)", min_value=0.0, value=float(auto_sell), step=10.0, key="p_sprice")
                         
-                    # Live Purchase GST Auto-Calculate
                     p_base_total = i_pprice * i_qty
                     p_gst_amt = (p_base_total * i_gst) / 100
                     p_final_total = p_base_total + p_gst_amt
@@ -169,7 +198,6 @@ if st.session_state.logged_in:
 
                     if st.button("💾 Save Purchase & Update Stock", use_container_width=True):
                         if i_name and i_sprice > 0:
-                            # Update stock if barcode exists, else insert new
                             existing = run_query("SELECT id FROM inventory WHERE barcode=? AND shop_email=?", (i_bcode, st.session_state.user_email)) if i_bcode else []
                             if existing and i_bcode != "":
                                 run_query("UPDATE inventory SET stock = stock + ?, purchase_price=?, selling_price=?, gst_rate=? WHERE id=?",
@@ -178,7 +206,6 @@ if st.session_state.logged_in:
                                 run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)",
                                           (st.session_state.user_email, i_name, i_pprice, i_sprice, i_qty, i_gst, i_bcode))
                             
-                            # Record Purchase Transaction
                             run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                                       (st.session_state.user_email, str(date.today()), i_name, i_qty, p_final_total, 0, 1 if i_gst>0 else 0, 'Purchase'))
                             
@@ -191,7 +218,7 @@ if st.session_state.logged_in:
                     stocks = run_query("SELECT item_name, stock, purchase_price, selling_price, barcode FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
                     st.dataframe(pd.DataFrame(stocks, columns=["Item", "Qty", "Purchase (₹)", "Selling (₹)", "Barcode"]), use_container_width=True)
 
-                # --- TAB 3: SALES ENTRY (POS + BARCODE + PRINT) ---
+                # --- TAB 3: SALES ENTRY (POS + BARCODE + PORTABLE PRINT) ---
                 with tab_sales:
                     st.subheader("🧾 Sales Entry (POS Billing)")
                     st.info("Click the box below and use your scanner. The product will be auto-selected.")
@@ -225,7 +252,6 @@ if st.session_state.logged_in:
                             
                         is_gst_bill = st.checkbox("Calculate GST on Sale", value=True)
                         
-                        # Live Sales Calculation
                         s_base_total = s_price * s_qty
                         total_cost = i_pprice * s_qty
                         
@@ -248,19 +274,18 @@ if st.session_state.logged_in:
                                 st.success(f"✅ Sale Recorded Successfully! Total: ₹ {s_final_price:.2f}")
                                 st.balloons()
                                 
+                                # Store Thermal HTML Receipt in Session
                                 st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()))
                             else: st.error("❌ Not enough stock!")
                             
                     else: st.warning("No stock available. Please add items in Purchase Entry tab first.")
 
+                    # --- SHOW PERFECT 58MM THERMAL PRINT PREVIEW ---
                     if "print_receipt" in st.session_state:
                         st.markdown("---")
-                        st.subheader("🖨️ Customer Invoice / Receipt Preview")
-                        st.info("Connect your Thermal Printer and click 'Print Receipt' below.")
-                        components.html(st.session_state.print_receipt, height=450)
-                        if st.button("Clear Receipt"):
-                            del st.session_state.print_receipt
-                            st.rerun()
+                        st.subheader("🖨️ Portable Printer Bill Preview (58mm/80mm)")
+                        st.info("Click 'Print Receipt' in the preview box. It will automatically fit your Thermal Printer's size!")
+                        components.html(st.session_state.print_receipt, height=500)
 
                 # --- TAB 4: REPORTS & P&L ---
                 with tab_rep:

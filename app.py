@@ -15,7 +15,7 @@ def send_real_email(receiver_email, otp):
     sender_email = "dhana6942@gmail.com"
     app_password = "zvhddripvstjwyef" 
     
-    msg = MIMEText(f"Namaskar (Hello),\n\nTumcha Kulu Smart ERP cha security OTP ahe: {otp}\n\nKrupaya ha OTP konasobat share karu naka.\n\nDhanyawad,\nKulu Smart ERP Team")
+    msg = MIMEText(f"ନମସ୍କାର (Hello),\n\nଆପଣଙ୍କ Kulu Smart ERP ର ସିକ୍ୟୁରିଟି OTP ହେଉଛି: {otp}\n\nଦୟାକରି ଏହାକୁ କାହା ସହିତ ସେୟାର କରନ୍ତୁ ନାହିଁ।\n(Please do not share this OTP with anyone.)\n\nଧନ୍ୟବାଦ,\nKulu Smart ERP Team")
     msg['Subject'] = 'Kulu ERP - Security OTP'
     msg['From'] = f"Kulu Smart ERP <{sender_email}>"
     msg['To'] = receiver_email
@@ -30,7 +30,7 @@ def send_real_email(receiver_email, otp):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (SUPER ADMIN UPDATED)
+# 1. DATABASE SETUP (SUPER ADMIN FORCE UPDATED)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
@@ -68,7 +68,9 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
               ('Super Admin', 'dhana6942@gmail.com', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
               
+    # 🔴 FORCE UPDATE ROLE TO FIX 'ROLE MISMATCH' ERROR 🔴
     try:
+        c.execute("UPDATE users SET role='SuperAdmin', password='admin123', approved=1, payment_status='Paid', is_deleted=0 WHERE email='dhana6942@gmail.com'")
         c.execute("UPDATE users SET email='dhana6942@gmail.com', password='admin123' WHERE email='admin@kulusutar.in' AND role='SuperAdmin'")
     except: pass
               
@@ -205,6 +207,7 @@ if st.session_state.logged_in:
                             st.rerun()
                 else: st.info("No active clients.")
             
+            # --- REAL EMAIL OTP FOR ADMIN PROFILE UPDATE ---
             with tab2:
                 st.subheader("🔐 Update Admin ID & Password")
                 curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
@@ -229,10 +232,10 @@ if st.session_state.logged_in:
                             st.session_state.admin_update_step = 2
                             st.rerun()
                         else:
-                            st.error("❌ Email pathavnyat adchan aali! Krupaya internet check kara.")
+                            st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ ବା ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
                         
                 elif st.session_state.admin_update_step == 2:
-                    st.success(f"📧 Real OTP tumchya {st.session_state.user_email} var pathvla ahe! (Check Inbox/Spam)")
+                    st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.user_email} କୁ ପଠାଯାଇଛି! (Check your Gmail Inbox/Spam)")
                     e_otp = st.text_input("Enter 6-digit OTP")
                     c1, c2 = st.columns(2)
                     with c1:
@@ -247,7 +250,7 @@ if st.session_state.logged_in:
                                     st.session_state.admin_update_step = 1
                                     st.rerun()
                                 except sqlite3.IntegrityError: st.error("❌ Email ID already registered!")
-                            else: st.error("❌ Chukicha OTP!")
+                            else: st.error("❌ ଭୁଲ୍ OTP!")
                     with c2:
                         if st.button("🚫 Cancel"):
                             st.session_state.admin_update_step = 1
@@ -264,7 +267,7 @@ if st.session_state.logged_in:
                 if my_data[2]: st.image(my_data[2], width=80)
             
             if my_data[0] is None:
-                st.warning("⚠️ Tumcha account ajun Super Admin kadun approve zala nahi.")
+                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
             else:
                 if st.session_state.user_role == "Wholesaler":
                     tab_dash, tab_purch, tab_sales, tab_net, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "🏪 Retailer Network Stock", "📄 Balance Sheet & P&L"])
@@ -483,7 +486,6 @@ else:
         l_email = st.text_input("Email")
         l_pass = st.text_input("Password", type="password")
         
-        # Add Login Button
         if st.button("Login", type="primary"):
             user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, l_pass))
             if user:
@@ -496,7 +498,6 @@ else:
                 else: st.error("❌ Role Mismatch.")
             else: st.error("Invalid Credentials.")
             
-        # 🔴 NEW FORGOT PASSWORD LINK BELOW LOGIN 🔴
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button(f"🔑 Forgot Password ({st.session_state.login_role})", use_container_width=False):
             st.session_state.current_page = "Forgot Password"
@@ -543,18 +544,18 @@ else:
                         st.session_state.forgot_step = 2
                         st.rerun()
                     else:
-                        st.error("❌ Email pathavnyat adchan aali! Krupaya internet check kara.")
-                else: st.error("❌ Hi Email aamchya system madhye nahiye.")
+                        st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ କିମ୍ବା ଆପ୍ ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
+                else: st.error("❌ ଏହି Email ଆମ ସିଷ୍ଟମ୍ ରେ ନାହିଁ।")
                     
         elif st.session_state.forgot_step == 2:
-            st.success(f"📧 Real OTP tumchya {st.session_state.forgot_email} var pathvla ahe! (Check Inbox/Spam)")
+            st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.forgot_email} କୁ ପଠାଯାଇଛି! (Check Inbox/Spam)")
             e_otp = st.text_input("Enter 6-digit OTP")
             if st.button("Verify OTP"):
                 if e_otp == st.session_state.forgot_otp:
                     st.session_state.forgot_step = 3
                     st.rerun()
                 else:
-                    st.error("❌ Chukicha OTP!")
+                    st.error("❌ ଭୁଲ୍ OTP!")
                     
         elif st.session_state.forgot_step == 3:
             new_pass = st.text_input("Enter New Password", type="password")

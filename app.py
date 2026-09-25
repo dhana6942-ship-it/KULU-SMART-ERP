@@ -5,14 +5,18 @@ import random
 import string
 import urllib.parse
 import time
+import hashlib
 from datetime import date, timedelta
 import streamlit.components.v1 as components
 import smtplib
 from email.mime.text import MIMEText
 
 # ==========================================
-# 0. LIVE EMAIL SYSTEM
+# 0. SECURITY & EMAIL SYSTEM
 # ==========================================
+def hash_pass(password):
+    return hashlib.sha256(str(password).encode()).hexdigest()
+
 def send_real_email(receiver_email, subject, body_text):
     sender_email = "dhana6942@gmail.com"
     app_password = "zvhddripvstjwyef" 
@@ -30,10 +34,11 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP
+# 1. DATABASE SETUP (ANTI-HANG WAL MODE)
 # ==========================================
 def init_db():
-    conn = sqlite3.connect('kulu_erp_system.db')
+    conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
+    conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
@@ -64,10 +69,11 @@ def init_db():
         try: c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
         except: pass
 
-    c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", ('Super Admin', 'dhana6942@gmail.com', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
+    admin_hash = hash_pass('admin123')
+    c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", ('Super Admin', 'dhana6942@gmail.com', admin_hash, 'SuperAdmin', 'Paid', 1, 0))
     try:
-        c.execute("UPDATE users SET role='SuperAdmin', password='admin123', approved=1, payment_status='Paid', is_deleted=0 WHERE email='dhana6942@gmail.com'")
-        c.execute("UPDATE users SET email='dhana6942@gmail.com', password='admin123' WHERE email='admin@kulusutar.in' AND role='SuperAdmin'")
+        c.execute("UPDATE users SET role='SuperAdmin', password=?, approved=1, payment_status='Paid', is_deleted=0 WHERE email='dhana6942@gmail.com'", (admin_hash,))
+        c.execute("UPDATE users SET email='dhana6942@gmail.com', password=? WHERE email='admin@kulusutar.in' AND role='SuperAdmin'", (admin_hash,))
     except: pass
     c.execute("INSERT OR IGNORE INTO admin_settings (id, upi_id, monthly_price, yearly_price, lifetime_price, soft_gst) VALUES (1, 'kulusutar@ybl', 499, 4999, 9999, 18)")
     conn.commit()
@@ -76,7 +82,8 @@ def init_db():
 init_db()
 
 def run_query(query, params=()):
-    conn = sqlite3.connect('kulu_erp_system.db')
+    conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
+    conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     c.execute(query, params)
     conn.commit()
@@ -179,7 +186,6 @@ st.markdown("""
     .card-title { font-size: 28px; font-weight: 800; color: #1a1a1a; margin-bottom: 15px; text-transform: uppercase;}
     .card-text { font-size: 16px; color: #555; line-height: 1.7; font-weight: 500; margin-bottom: 25px; }
     
-    /* 🔴 3D HOVER FOR REGISTRATION SECTION 🔴 */
     .register-section { 
         background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%); 
         padding: 60px 40px; border-radius: 25px; text-align: center; 
@@ -263,11 +269,19 @@ if st.session_state.logged_in:
                 else: st.info("No deleted accounts found.")
 
             with tab_prof:
+                st.subheader("🛡️ Admin Profile & Database Backup")
+                try:
+                    with open('kulu_erp_system.db', 'rb') as f:
+                        st.download_button("💾 Download Full Database Backup (.db)", f, file_name="kulu_erp_system_backup.db", type="primary")
+                except Exception as e:
+                    st.error("Backup file not found.")
+
                 curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
                 new_email = st.text_input("New Email ID", value=curr_admin[0])
-                new_pass = st.text_input("New Password", type="password", value=curr_admin[2])
+                new_pass = st.text_input("New Password (will be encrypted)", type="password")
                 if st.button("Update Profile"):
-                    run_query("UPDATE users SET email=?, password=? WHERE email=?", (new_email, new_pass, st.session_state.user_email))
+                    new_hash = hash_pass(new_pass) if new_pass else curr_admin[2]
+                    run_query("UPDATE users SET email=?, password=? WHERE email=?", (new_email, new_hash, st.session_state.user_email))
                     st.session_state.user_email = new_email; st.success("Updated!"); st.rerun()
 
         # ---------------- WHOLESALER & RETAIL SHOP ----------------
@@ -490,14 +504,22 @@ else:
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title(f"🔐 {st.session_state.login_role} Login")
-        l_email = st.text_input("Email Address"); l_pass = st.text_input("Secure Password", type="password")
-        if st.button("Login", type="primary"):
-            user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, l_pass))
-            if user:
-                if user[0][3] == 1: st.error("❌ Your account is Suspended.")
-                elif user[0][1] == st.session_state.login_role: st.session_state.logged_in = True; st.session_state.user_role = user[0][1]; st.session_state.user_email = l_email; st.rerun()
-                else: st.error("❌ Role Mismatch.")
-            else: st.error("Invalid Credentials.")
+        l_email = st.text_input("Email Address")
+        l_pass = st.text_input("Secure Password", type="password")
+        
+        c_l1, c_l2 = st.columns(2)
+        with c_l1:
+            if st.button("Login", type="primary"):
+                hash_attempt = hash_pass(l_pass)
+                user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, hash_attempt))
+                if user:
+                    if user[0][3] == 1: st.error("❌ Your account is Suspended.")
+                    elif user[0][1] == st.session_state.login_role: st.session_state.logged_in = True; st.session_state.user_role = user[0][1]; st.session_state.user_email = l_email; st.rerun()
+                    else: st.error("❌ Role Mismatch.")
+                else: st.error("Invalid Credentials.")
+        with c_l2:
+            if st.button("🔑 Forgot Password?"):
+                st.session_state.current_page = "Forgot Password"; st.rerun()
 
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
@@ -523,14 +545,46 @@ else:
         if st.button("Submit & Verify"):
             new_key = generate_license()
             exp_date = str(date.today() + timedelta(days=36500))
-            run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (d['name'], d['owner'], d['email'], d['pass'], d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0))
+            hash_new_pass = hash_pass(d['pass'])
+            run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0))
             send_real_email(d['email'], "Your License Key", f"Key: {new_key}")
             st.success("✅ Payment Verified! Check Email for License Key."); st.balloons()
             
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
-        st.title("🔑 Reset Password")
-        f_email = st.text_input("Registered Email")
-        if st.button("Send OTP"):
-            st.session_state.forgot_otp = "123456"; st.session_state.forgot_email = f_email
-            send_real_email(f_email, "OTP", "OTP is 123456"); st.success("OTP Sent!")
+        st.title("🔑 Reset Password via OTP")
+        
+        if "f_step" not in st.session_state: st.session_state.f_step = 1
+        
+        if st.session_state.f_step == 1:
+            f_email = st.text_input("Enter Registered Email ID")
+            if st.button("Send OTP"):
+                chk = run_query("SELECT email FROM users WHERE email=?", (f_email,))
+                if chk:
+                    otp_code = "".join(random.choices(string.digits, k=6))
+                    st.session_state.otp_code = otp_code
+                    st.session_state.f_email = f_email
+                    send_real_email(f_email, "Password Reset OTP", f"Your OTP for Kulu ERP Password Reset is: {otp_code}")
+                    st.success("✅ OTP sent to your registered email!")
+                    st.session_state.f_step = 2; st.rerun()
+                else:
+                    st.error("❌ Email not found in database!")
+                    
+        elif st.session_state.f_step == 2:
+            st.info(f"OTP sent to {st.session_state.get('f_email')}")
+            entered_otp = st.text_input("Enter 6-Digit OTP")
+            new_pass1 = st.text_input("New Password", type="password")
+            new_pass2 = st.text_input("Confirm New Password", type="password")
+            
+            if st.button("Reset Password", type="primary"):
+                if entered_otp.strip() == str(st.session_state.get('otp_code')):
+                    if new_pass1 == new_pass2 and new_pass1:
+                        new_h = hash_pass(new_pass1)
+                        run_query("UPDATE users SET password=? WHERE email=?", (new_h, st.session_state.get('f_email')))
+                        st.success("✅ Password successfully updated! Please login now.")
+                        del st.session_state.f_step
+                        st.session_state.current_page = "Home Ground"; st.rerun()
+                    else:
+                        st.error("❌ Passwords do not match or empty.")
+                else:
+                    st.error("❌ Invalid OTP!")

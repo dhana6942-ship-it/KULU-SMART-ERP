@@ -6,13 +6,12 @@ import string
 from datetime import date
 
 # ==========================================
-# 1. DATABASE SETUP (100% Bug-Free Schema Update)
+# 1. DATABASE SETUP
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
     c = conn.cursor()
     
-    # Core Tables
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, 
                  payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT)''')
@@ -26,7 +25,6 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS transactions
                  (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER)''')
     
-    # Safely add columns one by one without crashing
     cols_to_add = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), 
         ("package_type", "TEXT"), ("license_key", "TEXT"), 
@@ -224,7 +222,6 @@ if st.session_state.logged_in:
                 if my_data[2]: st.image(my_data[2], width=120)
                 else: st.write("📷 No Shop Photo")
             
-            # Lock features if not approved by Admin
             if my_data[0] is None:
                 st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ। ଦୟାକରି License Key ପାଇବା ପର୍ଯ୍ୟନ୍ତ ଅପେକ୍ଷା କରନ୍ତୁ।")
             else:
@@ -250,24 +247,32 @@ if st.session_state.logged_in:
 
                 with tab2:
                     st.subheader("📦 Add New Product to Stock")
-                    with st.form("add_inventory"):
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            i_name = st.text_input("Product Name")
-                            i_stock = st.number_input("Stock Quantity", min_value=1)
-                        with col2:
-                            i_pprice = st.number_input("Purchase Price (₹)", min_value=0.0)
-                            i_sprice = st.number_input("Selling Price (₹)", min_value=0.0)
-                        with col3:
-                            i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0)
-                            
-                        if st.form_submit_button("➕ Add to Inventory"):
-                            if i_name and i_sprice > i_pprice:
-                                run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate) VALUES (?, ?, ?, ?, ?, ?)",
-                                          (st.session_state.user_email, i_name, i_pprice, i_sprice, i_stock, i_gst))
-                                st.success(f"{i_name} added to stock!")
-                                st.rerun()
-                            else: st.error("❌ Invalid input. Selling Price must be greater than Purchase Price.")
+                    
+                    # 🔴 NAVIN LIVE AUTO-CALCULATION UPDATE 🔴
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        i_name = st.text_input("Product Name")
+                        i_stock = st.number_input("Stock Quantity", min_value=1, value=1)
+                    with col2:
+                        i_pprice = st.number_input("Purchase Price (₹)", min_value=0.0, value=0.0, step=10.0)
+                        i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0, step=1.0)
+                        
+                    auto_sell_price = i_pprice + (i_pprice * i_gst / 100)
+                    
+                    with col3:
+                        st.info(f"💡 Auto GST Price: ₹ {auto_sell_price:.2f}")
+                        i_sprice = st.number_input("Final Selling Price (₹)", min_value=0.0, value=float(auto_sell_price), step=10.0)
+                        
+                    if st.button("➕ Add to Inventory", use_container_width=True):
+                        if i_name and i_sprice > i_pprice:
+                            run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate) VALUES (?, ?, ?, ?, ?, ?)",
+                                      (st.session_state.user_email, i_name, i_pprice, i_sprice, i_stock, i_gst))
+                            st.success(f"✅ {i_name} added to stock!")
+                            st.rerun()
+                        elif i_sprice <= i_pprice:
+                            st.error("❌ Selling Price must be greater than Purchase Price.")
+                        else:
+                            st.error("❌ Please enter Product Name.")
                                 
                     st.markdown("---")
                     st.subheader("Current Available Stock")
@@ -289,10 +294,8 @@ if st.session_state.logged_in:
                         with col1:
                             b_qty = st.number_input("Quantity", min_value=1, value=1)
                         with col2:
-                            # ଟିକ୍ ମାରିବା ମାତ୍ରେ କାଲକୁଲେଟ୍ ହେବ
                             is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)", value=True)
                             
-                        # LIVE AUTO-CALCULATION
                         item_data = item_dict[sel_item]
                         i_id, i_name, i_sprice, i_stock, i_gst, i_pprice = item_data
                         
@@ -340,7 +343,6 @@ if st.session_state.logged_in:
                             st.rerun()
 
 else:
-    # --- LOGGED OUT VIEWS ---
     if st.session_state.current_page == "Home Ground":
         st.markdown('<div class="main-title">🏢 Kulu Smart ERP & Billing System</div>', unsafe_allow_html=True)
         col1, col2, col3 = st.columns(3)
@@ -361,7 +363,6 @@ else:
         with c2:
             if st.button("🔑 Forgot Password"): st.session_state.current_page = "Forgot Password"; st.rerun()
 
-    # ---------------- LOGIN ----------------
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title(f"🔐 {st.session_state.login_role} Login")
@@ -379,7 +380,6 @@ else:
                 else: st.error("❌ Role Mismatch.")
             else: st.error("Invalid Credentials.")
 
-    # ---------------- REGISTER & PAYMENT ----------------
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🛒 Buy Kulu ERP Software")
@@ -412,7 +412,6 @@ else:
                     except: st.error("❌ Email already registered.")
                 else: st.warning("Please fill all fields and enter valid UTR/Amount.")
 
-    # ---------------- FORGOT PASSWORD ----------------
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🔑 Reset Password (All Users)")

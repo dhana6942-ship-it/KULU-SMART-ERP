@@ -78,15 +78,10 @@ def init_db():
     try: c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
     except: pass
     
-    tx_cols = [("customer_name", "TEXT"), ("customer_mobile", "TEXT"), ("invoice_no", "TEXT"), ("rate", "REAL"), ("gst_pct", "REAL")]
+    tx_cols = [("customer_name", "TEXT"), ("customer_mobile", "TEXT"), ("invoice_no", "TEXT"), ("rate", "REAL"), ("gst_pct", "REAL"), ("gst_amt", "REAL DEFAULT 0")]
     for col, dtype in tx_cols:
         try: c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
         except: pass 
-
-    tx_cols2 = [("gst_amt", "REAL DEFAULT 0")]
-    for col, dtype in tx_cols2:
-        try: c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
-        except: pass
 
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
               ('Super Admin', 'dhana6942@gmail.com', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
@@ -114,7 +109,6 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
-# 🔴 SIMPLIFIED GST RECEIPT GENERATOR 🔴
 def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, total_price, date_str, shop_upi="", cust_name="", cust_mob="", inv_no="", base_amt=0):
     qr_html = ""
     if shop_upi:
@@ -182,6 +176,8 @@ st.markdown("""
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Home Ground"
 if "login_role" not in st.session_state: st.session_state.login_role = None
+
+INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"]
 
 # ==========================================
 # 4. APP ROUTING
@@ -298,25 +294,42 @@ if st.session_state.logged_in:
                 purch_data = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Purchase'", (st.session_state.user_email, today_str))[0][0]
                 profit_data = run_query("SELECT SUM(profit) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Sale'", (st.session_state.user_email, today_str))[0][0]
                 
+                s_val = float(sales_data) if sales_data else 0.0
+                p_val = float(purch_data) if purch_data else 0.0
+                pr_val = float(profit_data) if profit_data else 0.0
+                
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Total Sales", f"₹ {float(sales_data or 0):.2f}")
-                c2.metric("Total Purchases", f"₹ {float(purch_data or 0):.2f}")
-                c3.metric("Net Profit", f"₹ {float(profit_data or 0):.2f}")
+                c1.metric("Total Sales", f"₹ {s_val:.2f}"); c2.metric("Total Purchases", f"₹ {p_val:.2f}"); c3.metric("Net Profit", f"₹ {pr_val:.2f}")
 
+            # 🔴 ADD INVENTORY (BARCODE MACHINE SUPPORT) 🔴
             with tab_purch:
                 st.subheader("📥 Add Inventory (Purchase)")
+                i_bcode = st.text_input("||||| Scan Barcode Here (Use Machine) 👇", key="p_bcode")
+                
+                existing_item = run_query("SELECT item_name, purchase_price, selling_price FROM inventory WHERE barcode=? AND shop_email=?", (i_bcode, st.session_state.user_email)) if i_bcode else []
+                def_name = existing_item[0][0] if existing_item else ""
+                def_buy = float(existing_item[0][1]) if existing_item else 0.0
+                def_sell = float(existing_item[0][2]) if existing_item else 0.0
+                
+                if existing_item:
+                    st.success(f"Item found: {def_name}. Just enter quantity and save!")
+                
                 c1, c2, c3 = st.columns(3)
-                with c1: i_name = st.text_input("Product Name", key="p_name")
+                with c1: i_name = st.text_input("Product Name", value=def_name, key="p_name")
                 with c2: i_qty = st.number_input("Qty", min_value=1, value=1, key="p_qty")
                 with c3:
-                    i_pprice = st.number_input("Buy Rate (₹)", min_value=0.0, step=10.0, key="p_pprice")
-                    i_sprice = st.number_input("Sell Rate (₹)", min_value=0.0, value=float(i_pprice + (i_pprice*0.18)), step=10.0, key="p_sprice")
+                    i_pprice = st.number_input("Buy Rate (₹)", min_value=0.0, value=def_buy, step=10.0, key="p_pprice")
+                    i_sprice = st.number_input("Sell Rate (₹)", min_value=0.0, value=def_sell, step=10.0, key="p_sprice")
                     
                 if st.button("💾 Save Purchase", use_container_width=True) and i_name:
-                    run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)", (st.session_state.user_email, i_name, i_pprice, i_sprice, i_qty, 0, ""))
+                    if existing_item: 
+                        run_query("UPDATE inventory SET stock = stock + ?, purchase_price=?, selling_price=? WHERE barcode=? AND shop_email=?", (i_qty, i_pprice, i_sprice, i_bcode, st.session_state.user_email))
+                    else: 
+                        run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)", (st.session_state.user_email, i_name, i_pprice, i_sprice, i_qty, 0, i_bcode))
                     run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (st.session_state.user_email, str(date.today()), i_name, i_qty, i_pprice*i_qty, 0, 0, 'Purchase'))
-                    st.success(f"✅ Purchase Saved!")
+                    st.success(f"✅ Purchase Saved! Barcode Registered.")
 
+            # 🔴 SALES POS (BARCODE MACHINE SUPPORT) 🔴
             with tab_sales:
                 st.subheader("🧾 Sales POS (Manual GST Slab)")
                 
@@ -327,16 +340,38 @@ if st.session_state.logged_in:
                     if st.button("➕ Create New Bill", type="primary"):
                         del st.session_state.print_receipt; st.rerun()
                 else:
-                    with st.expander("👤 Customer Details", expanded=True):
+                    with st.expander("👤 Customer Details", expanded=False):
                         c1, c2 = st.columns(2)
                         with c1: cust_name = st.text_input("Customer Name")
                         with c2: cust_mob = st.text_input("Mobile Number")
                         
+                    scan_code = st.text_input("🔍 SCAN BARCODE HERE (Use Machine)...", key="s_scan")
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, purchase_price FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
+                    
                     if stock_items:
                         item_dict = {f"{item[1]} - ₹{item[2]}": item for item in stock_items}
-                        sel_item = st.selectbox("Select Product", list(item_dict.keys()))
-                        i_id, i_name, default_sprice, i_stock, i_pprice = item_dict[sel_item]
+                        default_index = 0
+                        if scan_code:
+                            for idx, item in enumerate(stock_items):
+                                # Checking barcode from index 6 which we added in db logic. Wait, the select query didn't have barcode. Let's fix that.
+                                # Actually in the previous fix it was select id, name, price, stock, pprice, gst, barcode. Let me update the query.
+                                pass 
+                    
+                    # Updated query for POS to include barcode
+                    stock_items_pos = run_query("SELECT id, item_name, selling_price, stock, purchase_price, gst_rate, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
+                    
+                    if stock_items_pos:
+                        item_dict_pos = {f"{item[1]} - ₹{item[2]} (Stock: {item[3]})": item for item in stock_items_pos}
+                        default_index_pos = 0
+                        if scan_code:
+                            for idx, item in enumerate(stock_items_pos):
+                                if str(item[6]) == str(scan_code): 
+                                    default_index_pos = idx; 
+                                    st.success(f"Barcode Matched: {item[1]}")
+                                    break
+                        
+                        sel_item_pos = st.selectbox("Select Product", list(item_dict_pos.keys()), index=default_index_pos)
+                        i_id, i_name, default_sprice, i_stock, i_pprice, def_gst, _ = item_dict_pos[sel_item_pos]
                         
                         col1, col2, col3 = st.columns(3)
                         with col1: s_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1)
@@ -403,7 +438,7 @@ if st.session_state.logged_in:
 
             with tab_gst_rep:
                 st.subheader("📊 GST Filing & Balance Sheet")
-                st.write("ଏଠାରେ ଆପଣଙ୍କର ସମସ୍ତ GST ହିସାବ ଅଛି। ଆପଣ ଏହାକୁ Print କରି ନିଜର CA କୁ ଦେଇପାରିବେ।")
+                st.write("Ehiya tamaro GST report ahe. Print karun CA ne aapo.")
                 
                 gst_data = run_query("SELECT invoice_no, date, customer_name, total_price - gst_amt, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND trans_type='Sale' AND is_gst=1", (st.session_state.user_email,))
                 

@@ -125,17 +125,28 @@ st.markdown("""
     #MainMenu {visibility: hidden !important; display: none !important;}
     header {visibility: hidden !important; display: none !important;}
     footer {visibility: hidden !important; display: none !important;}
-    .stDeployButton {display: none !important; visibility: hidden !important;}
+    .stDeployButton, [data-testid="stAppDeployButton"] {display: none !important; visibility: hidden !important;}
     [data-testid="stToolbar"] {display: none !important; visibility: hidden !important;}
     [data-testid="stDecoration"] {display: none !important; visibility: hidden !important;}
     [data-testid="manage-app-button"] {display: none !important; visibility: hidden !important;}
-    .viewerBadge_container {display: none !important; visibility: hidden !important;}
-    .viewerBadge_link {display: none !important; visibility: hidden !important;}
-    div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
+    .viewerBadge_container, .viewerBadge_link, div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
     div[class*="manage-app"] {display: none !important; visibility: hidden !important;}
+    #manage-app-button, .manage-app-button {display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;}
     .st-emotion-cache-16txtl3 {padding-top: 0rem;}
     
-    /* 🌟 NEW PREMIUM BEAUTIFUL DESIGN 🌟 */
+    /* 🌟 NEW PREMIUM 3D BUTTONS 🌟 */
+    .stButton > button {
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        border: 1px solid rgba(0,0,0,0.05) !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-5px) scale(1.02) !important;
+        box-shadow: 0 15px 25px rgba(0,0,0,0.15) !important;
+    }
+    
     .hero-container { 
         background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); 
         background-size: 400% 400%; animation: gradientBG 12s ease infinite; 

@@ -7,7 +7,7 @@ from datetime import date
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. DATABASE SETUP
+# 1. DATABASE SETUP (Added trans_type for Sales/Purchase)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
@@ -24,13 +24,7 @@ def init_db():
                  (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
                  
     c.execute('''CREATE TABLE IF NOT EXISTS transactions
-                 (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER)''')
-                 
-    c.execute('''CREATE TABLE IF NOT EXISTS ledgers
-                 (id INTEGER PRIMARY KEY, shop_email TEXT, ledger_name TEXT, ledger_group TEXT)''')
-                 
-    c.execute('''CREATE TABLE IF NOT EXISTS vouchers
-                 (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, v_type TEXT, ledger_name TEXT, amount REAL, narration TEXT)''')
+                 (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
     
     cols_to_add = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), 
@@ -42,6 +36,9 @@ def init_db():
         except: pass 
 
     try: c.execute("ALTER TABLE inventory ADD COLUMN barcode TEXT")
+    except: pass
+    
+    try: c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
     except: pass
 
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -67,7 +64,6 @@ def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
 def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str):
-    # CSS & HTML Format for Thermal Receipt Printer (58mm/80mm compatible)
     return f"""
     <div id="receipt" style="width: 300px; padding: 15px; border: 2px dashed #000; font-family: 'Courier New', Courier, monospace; margin: auto; background: #fff; color: #000;">
         <h3 style="text-align: center; margin: 0 0 10px 0;">{shop_name}</h3>
@@ -120,7 +116,7 @@ if st.session_state.logged_in:
             st.title("👑 Super Admin Control Panel")
             st.info("Please use Wholesaler or Retail Shop login to test Barcode & Print Features.")
 
-        # ---------------- WHOLESALER & RETAIL SHOP (POS + BARCODE) ----------------
+        # ---------------- WHOLESALER & RETAIL SHOP (SEPARATE PURCHASE & SALES) ----------------
         else:
             my_data = run_query("SELECT license_key, package_type, shop_photo, name FROM users WHERE email=?", (st.session_state.user_email,))[0]
             shop_name = my_data[3]
@@ -131,63 +127,82 @@ if st.session_state.logged_in:
                 if my_data[2]: st.image(my_data[2], width=80)
             
             if my_data[0] is None:
-                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ।")
+                st.warning("⚠️ Tumcha account ajun Super Admin kadun approve zala nahi.")
             else:
-                tab_dash, tab_inv, tab_pos, tab_rep = st.tabs(["📈 Dashboard", "📦 Add Inventory (Barcode)", "🧾 POS Billing (Scan & Print)", "📄 P&L Reports"])
+                tab_dash, tab_purch, tab_sales, tab_rep = st.tabs(["📈 Dashboard", "📥 Purchase Entry (Stock In)", "🧾 Sales Entry (Stock Out)", "📄 Balance Sheet & P&L"])
                 
                 # --- TAB 1: DASHBOARD ---
                 with tab_dash:
                     st.subheader("Financial Summary (Today)")
                     today_str = str(date.today())
-                    sales_data = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND date=?", (st.session_state.user_email, today_str))[0][0]
-                    profit_data = run_query("SELECT SUM(profit) FROM transactions WHERE shop_email=? AND date=?", (st.session_state.user_email, today_str))[0][0]
-                    c1, c2 = st.columns(2)
+                    sales_data = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Sale'", (st.session_state.user_email, today_str))[0][0]
+                    purch_data = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Purchase'", (st.session_state.user_email, today_str))[0][0]
+                    profit_data = run_query("SELECT SUM(profit) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Sale'", (st.session_state.user_email, today_str))[0][0]
+                    
+                    c1, c2, c3 = st.columns(3)
                     c1.metric("Today's Total Sales", f"₹ {sales_data if sales_data else 0.0}")
-                    c2.metric("Today's Net Profit", f"₹ {profit_data if profit_data else 0.0}")
+                    c2.metric("Today's Total Purchases", f"₹ {purch_data if purch_data else 0.0}")
+                    c3.metric("Today's Net Profit", f"₹ {profit_data if profit_data else 0.0}")
 
-                # --- TAB 2: INVENTORY (WITH BARCODE) ---
-                with tab_inv:
-                    st.subheader("📦 Add Stock with Barcode")
-                    st.write("Keep the cursor in the Barcode box and use your Scanner Machine to auto-type the code.")
+                # --- TAB 2: PURCHASE ENTRY (WITH AUTO GST) ---
+                with tab_purch:
+                    st.subheader("📥 Purchase Entry (Kharedi & Stock In)")
+                    st.write("Scan Barcode and enter purchase details. Purchase GST will be auto-calculated.")
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        i_name = st.text_input("Product Name")
-                        i_bcode = st.text_input("||||| Scan Barcode (Optional)")
+                        i_bcode = st.text_input("||||| Scan Barcode (Optional)", key="p_bcode")
+                        i_name = st.text_input("Product Name", key="p_name")
                     with col2:
-                        i_stock = st.number_input("Stock Quantity", min_value=1, value=1)
-                        i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0)
+                        i_qty = st.number_input("Purchase Quantity", min_value=1, value=1, key="p_qty")
+                        i_gst = st.number_input("Purchase GST Rate (%)", min_value=0.0, value=18.0, key="p_gst")
                     with col3:
-                        i_pprice = st.number_input("Purchase Rate (₹)", min_value=0.0)
+                        i_pprice = st.number_input("Base Purchase Rate (₹)", min_value=0.0, step=10.0, key="p_pprice")
                         auto_sell = i_pprice + (i_pprice * i_gst / 100)
-                        i_sprice = st.number_input("Selling Rate (₹)", min_value=0.0, value=float(auto_sell))
+                        i_sprice = st.number_input("Set Selling Rate (₹)", min_value=0.0, value=float(auto_sell), step=10.0, key="p_sprice")
                         
-                    if st.button("➕ Add to Inventory", use_container_width=True):
-                        if i_name and i_sprice > i_pprice:
-                            run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                      (st.session_state.user_email, i_name, i_pprice, i_sprice, i_stock, i_gst, i_bcode))
-                            st.success(f"Item '{i_name}' added to inventory!")
+                    # Live Purchase GST Auto-Calculate
+                    p_base_total = i_pprice * i_qty
+                    p_gst_amt = (p_base_total * i_gst) / 100
+                    p_final_total = p_base_total + p_gst_amt
+                    
+                    st.info(f"💰 **Live Purchase Calculate:** ₹ {p_base_total:.2f} (Base) + ₹ {p_gst_amt:.2f} ({i_gst}% GST) = **₹ {p_final_total:.2f} Total Purchase Value**")
+
+                    if st.button("💾 Save Purchase & Update Stock", use_container_width=True):
+                        if i_name and i_sprice > 0:
+                            # Update stock if barcode exists, else insert new
+                            existing = run_query("SELECT id FROM inventory WHERE barcode=? AND shop_email=?", (i_bcode, st.session_state.user_email)) if i_bcode else []
+                            if existing and i_bcode != "":
+                                run_query("UPDATE inventory SET stock = stock + ?, purchase_price=?, selling_price=?, gst_rate=? WHERE id=?",
+                                          (i_qty, i_pprice, i_sprice, i_gst, existing[0][0]))
+                            else:
+                                run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                          (st.session_state.user_email, i_name, i_pprice, i_sprice, i_qty, i_gst, i_bcode))
+                            
+                            # Record Purchase Transaction
+                            run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                      (st.session_state.user_email, str(date.today()), i_name, i_qty, p_final_total, 0, 1 if i_gst>0 else 0, 'Purchase'))
+                            
+                            st.success(f"✅ Purchase Saved! Stock Updated for '{i_name}'.")
                             st.rerun()
                         else: st.error("Please enter valid Product Name and Prices.")
                     
-                    st.markdown("**Current Stock:**")
-                    stocks = run_query("SELECT item_name, stock, selling_price, barcode FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
-                    st.dataframe(pd.DataFrame(stocks, columns=["Item", "Qty", "Rate", "Barcode"]), use_container_width=True)
+                    st.markdown("---")
+                    st.markdown("**Current Available Stock:**")
+                    stocks = run_query("SELECT item_name, stock, purchase_price, selling_price, barcode FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
+                    st.dataframe(pd.DataFrame(stocks, columns=["Item", "Qty", "Purchase (₹)", "Selling (₹)", "Barcode"]), use_container_width=True)
 
-                # --- TAB 3: POS BILLING (SCANNER + PRINT RECEIPT) ---
-                with tab_pos:
-                    st.subheader("🧾 Point of Sale (Barcode Scanner & Print)")
+                # --- TAB 3: SALES ENTRY (POS + BARCODE + PRINT) ---
+                with tab_sales:
+                    st.subheader("🧾 Sales Entry (POS Billing)")
                     st.info("Click the box below and use your scanner. The product will be auto-selected.")
                     
-                    # Barcode Scanner Input
-                    scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="pos_scan")
+                    scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="s_scan")
                     
-                    item_data = None
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     
                     if stock_items:
                         item_dict = {f"{item[1]} - ₹{item[2]} (Stock: {item[3]})": item for item in stock_items}
                         
-                        # Auto-Select via Barcode
                         default_index = 0
                         if scan_code:
                             for idx, item in enumerate(stock_items):
@@ -198,71 +213,73 @@ if st.session_state.logged_in:
                             else:
                                 st.error("Barcode not found in stock!")
                         
-                        sel_item = st.selectbox("Select Product Manually (If no scanner)", list(item_dict.keys()), index=default_index)
+                        sel_item = st.selectbox("Select Product Manually", list(item_dict.keys()), index=default_index)
                         
-                        # Load Item Details
                         item_data = item_dict[sel_item]
                         i_id, i_name, default_sprice, i_stock, default_gst, i_pprice, _ = item_data
                         
                         col1, col2, col3 = st.columns(3)
-                        with col1: b_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1)
-                        with col2: manual_price = st.number_input("Rate (₹)", min_value=0.0, value=float(default_sprice))
-                        with col3: manual_gst = st.number_input("GST (%)", min_value=0.0, value=float(default_gst))
+                        with col1: s_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1, key="s_qty")
+                        with col2: s_price = st.number_input("Selling Rate (₹)", min_value=0.0, value=float(default_sprice), key="s_price")
+                        with col3: s_gst = st.number_input("Sales GST (%)", min_value=0.0, value=float(default_gst), key="s_gst")
                             
-                        is_gst_bill = st.checkbox("Calculate GST", value=True)
+                        is_gst_bill = st.checkbox("Calculate GST on Sale", value=True)
                         
-                        # Auto Calculation
-                        base_total = manual_price * b_qty
-                        total_cost = i_pprice * b_qty
+                        # Live Sales Calculation
+                        s_base_total = s_price * s_qty
+                        total_cost = i_pprice * s_qty
                         
                         if is_gst_bill:
-                            tax_amount = (base_total * manual_gst) / 100
-                            final_price = base_total + tax_amount
-                            st.write(f"**Total: ₹ {final_price:.2f}** (Includes GST)")
+                            s_tax_amount = (s_base_total * s_gst) / 100
+                            s_final_price = s_base_total + s_tax_amount
+                            st.write(f"💰 **Live Auto-Calculate:** ₹ {s_base_total:.2f} (Base) + ₹ {s_tax_amount:.2f} GST = **₹ {s_final_price:.2f}**")
                         else:
-                            final_price = base_total
-                            st.write(f"**Total: ₹ {final_price:.2f}** (No GST)")
+                            s_final_price = s_base_total
+                            st.write(f"💰 **Live Auto-Calculate:** **₹ {s_final_price:.2f}** (No GST)")
                             
-                        profit = base_total - total_cost
+                        profit = s_final_price - total_cost
 
-                        if st.button("🛒 Generate Bill & Print", use_container_width=True, type="primary"):
-                            if b_qty <= i_stock:
-                                # Save Transaction
-                                run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (b_qty, i_id))
-                                run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                          (st.session_state.user_email, str(date.today()), i_name, b_qty, final_price, profit, 1 if is_gst_bill else 0))
+                        if st.button("🛒 Generate Sale Bill & Print", use_container_width=True, type="primary"):
+                            if s_qty <= i_stock:
+                                run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (s_qty, i_id))
+                                run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                          (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale'))
                                 
-                                st.success(f"✅ Sale Recorded Successfully! Total: ₹ {final_price:.2f}")
+                                st.success(f"✅ Sale Recorded Successfully! Total: ₹ {s_final_price:.2f}")
                                 st.balloons()
                                 
-                                # Store HTML Receipt in Session to Display
-                                st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, b_qty, manual_price, manual_gst if is_gst_bill else 0, final_price, str(date.today()))
+                                st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()))
                             else: st.error("❌ Not enough stock!")
                             
-                    else: st.warning("No stock available. Please add items in Inventory tab first.")
+                    else: st.warning("No stock available. Please add items in Purchase Entry tab first.")
 
-                    # --- SHOW THERMAL PRINT PREVIEW AFTER SALE ---
                     if "print_receipt" in st.session_state:
                         st.markdown("---")
                         st.subheader("🖨️ Customer Invoice / Receipt Preview")
                         st.info("Connect your Thermal Printer and click 'Print Receipt' below.")
                         components.html(st.session_state.print_receipt, height=450)
-                        
                         if st.button("Clear Receipt"):
                             del st.session_state.print_receipt
                             st.rerun()
 
-                # --- TAB 4: BALANCE SHEET / REPORTS ---
+                # --- TAB 4: REPORTS & P&L ---
                 with tab_rep:
-                    st.subheader("📄 Business Balance Sheet")
-                    t_sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=?", (st.session_state.user_email,))
+                    st.subheader("📄 Lifetime Balance Sheet & P&L")
+                    t_sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND trans_type='Sale'", (st.session_state.user_email,))
+                    t_purch = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND trans_type='Purchase'", (st.session_state.user_email,))
+                    
                     sales_val = t_sales[0][0] or 0.0
                     net_profit = t_sales[0][1] or 0.0
+                    purch_val = t_purch[0][0] or 0.0
+                    
+                    col1, col2 = st.columns(2)
+                    col1.markdown(f"### 🟢 Total Sales: **₹ {sales_val:.2f}**")
+                    col2.markdown(f"### 🔴 Total Purchases: **₹ {purch_val:.2f}**")
                     
                     status = "✅ PROFIT" if net_profit >= 0 else "❌ LOSS"
-                    
-                    st.markdown(f"### Total Lifetime Sales: **₹ {sales_val:.2f}**")
-                    st.markdown(f"### Net Business Status: **{status} (₹ {net_profit:.2f})**")
+                    st.markdown("---")
+                    st.markdown(f"## 📊 NET BUSINESS STATUS: {status}")
+                    st.markdown(f"### Final Net Profit: ₹ {net_profit:.2f}")
 
 else:
     # --- LOGGED OUT VIEWS ---

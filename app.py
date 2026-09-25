@@ -1,229 +1,186 @@
 import streamlit as st
-import random
+import sqlite3
+import pandas as pd
+from datetime import datetime
 
-# Page Config
-st.set_page_config(page_title="Kulu AI Video Studio Pro", page_icon="🎬", layout="wide")
+# ==========================================
+# 1. DATABASE SETUP (Permanent Storage)
+# ==========================================
+def init_db():
+    conn = sqlite3.connect('kulu_erp_system.db')
+    c = conn.cursor()
+    # Users Table (SuperAdmin, Wholesaler, Shop)
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
+    # Inventory Table
+    c.execute('''CREATE TABLE IF NOT EXISTS inventory
+                 (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL)''')
+    # Sales/Transactions Table
+    c.execute('''CREATE TABLE IF NOT EXISTS transactions
+                 (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER)''')
+    
+    # Create Default Super Admin (You)
+    c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved) VALUES (?, ?, ?, ?, ?, ?)",
+              ('Super Admin', 'admin@kulusutar.in', 'admin123', 'SuperAdmin', 'Paid', 1))
+    conn.commit()
+    conn.close()
 
-# Custom Styling
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 36px;
-        font-weight: bold;
-        color: #FF4B4B;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    .sub-header {
-        font-size: 18px;
-        color: #4A4A4A;
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    .card {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #FF4B4B;
-        margin-bottom: 20px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+init_db()
 
-# Session State Initialization
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "is_admin" not in st.session_state:
-    st.session_state.is_admin = False
-if "current_user" not in st.session_state:
-    st.session_state.current_user = ""
-if "registered_users" not in st.session_state:
-    st.session_state.registered_users = {}
-if "otp_sent" not in st.session_state:
-    st.session_state.otp_sent = False
-if "generated_otp" not in st.session_state:
-    st.session_state.generated_otp = ""
-if "temp_user_data" not in st.session_state:
-    st.session_state.temp_user_data = {}
+# ==========================================
+# 2. HELPER FUNCTIONS
+# ==========================================
+def run_query(query, params=()):
+    conn = sqlite3.connect('kulu_erp_system.db')
+    c = conn.cursor()
+    c.execute(query, params)
+    conn.commit()
+    data = c.fetchall()
+    conn.close()
+    return data
+
+# ==========================================
+# 3. UI & SESSION STATE
+# ==========================================
+st.set_page_config(page_title="Kulu ERP & Billing System", layout="wide")
+
+if "user_email" not in st.session_state:
+    st.session_state.user_email = None
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
 
 # Sidebar Navigation
-st.sidebar.title("🎬 Kulu AI Studio Pro")
-st.sidebar.markdown("---")
-
-if st.session_state.logged_in:
-    if st.session_state.is_admin:
-        menu = st.sidebar.selectbox("Navigation Menu", ["Admin Dashboard", "AI Master Video Studio", "Home"])
-    else:
-        menu = st.sidebar.selectbox("Navigation Menu", ["AI Master Video Studio", "Home"])
-    st.sidebar.markdown(f"👤 **Logged in as:**\n`{st.session_state.current_user}`")
-    if st.sidebar.button("🚪 Logout Studio"):
-        st.session_state.logged_in = False
-        st.session_state.is_admin = False
-        st.session_state.current_user = ""
-        st.rerun()
+if st.session_state.user_email is None:
+    menu = st.sidebar.radio("Menu", ["Login", "Buy Software (Register)"])
 else:
-    menu = st.sidebar.selectbox("Navigation Menu", ["Home", "Login", "Register"])
+    menu = st.sidebar.radio("Menu", ["Dashboard", "Logout"])
 
-# ----------------- HOME PAGE -----------------
-if menu == "Home":
-    st.markdown('<div class="main-header">🚀 Welcome to Kulu AI Video Studio</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">India’s #1 AI-Powered Video Generation & Studio Platform</div>', unsafe_allow_html=True)
+# ==========================================
+# 4. LOGIN & REGISTRATION (SaaS Model)
+# ==========================================
+if menu == "Buy Software (Register)":
+    st.title("🛒 Buy Kulu ERP Software")
+    st.info("Start managing your Wholesale & Retail business today!")
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown('<div class="card"><h3>📸 Photo-to-Video Match</h3><p>Upload your photo and map your face into customized AI cinematic video generation outputs.</p></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown('<div class="card"><h3>⏱️ Custom Durations</h3><p>Select exact 5, 10, or 15-minute video generation lengths with instant render capability.</p></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown('<div class="card"><h3>⚡ Direct Play</h3><p>Watch your generated AI videos directly on screen with high-speed performance.</p></div>', unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.info("💡 **Tip:** Go to the sidebar, **Register** your account with instant OTP, or click **Login** as Master Admin to start generating videos!")
-
-# ----------------- REGISTER PAGE (School System Style Instant OTP) -----------------
-elif menu == "Register":
-    st.markdown('<div class="main-header">📝 New User Registration</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Join India\'s leading AI studio instantly</div>', unsafe_allow_html=True)
-    
-    if not st.session_state.otp_sent:
-        col1, col2 = st.columns(2)
-        with col1:
-            reg_name = st.text_input("Full Name")
-            reg_email = st.text_input("Email Address")
-        with col2:
-            reg_mobile = st.text_input("Mobile Number")
-            reg_password = st.text_input("Password", type="password")
+    with st.form("register_form"):
+        r_name = st.text_input("Business / Owner Name")
+        r_email = st.text_input("Email Address")
+        r_pass = st.text_input("Password", type="password")
+        r_role = st.selectbox("Select Software Version", ["Wholesaler (Manage multiple shops)", "Retail Shop (Manage single shop)"])
+        submit = st.form_submit_button("Proceed to Payment")
         
-        if st.button("✨ Generate Secure OTP"):
-            if reg_email and reg_password and reg_name and reg_mobile:
-                otp = str(random.randint(1000, 9999))
-                st.session_state.generated_otp = otp
-                st.session_state.temp_user_data = {
-                    "name": reg_name,
-                    "email": reg_email,
-                    "mobile": reg_mobile,
-                    "password": reg_password
-                }
-                st.session_state.otp_sent = True
-                st.rerun()
+        if submit:
+            if r_name and r_email and r_pass:
+                try:
+                    role_value = "Wholesaler" if "Wholesaler" in r_role else "Shop"
+                    # Add to DB as Pending
+                    run_query("INSERT INTO users (name, email, password, role, payment_status, approved) VALUES (?, ?, ?, ?, ?, ?)",
+                              (r_name, r_email, r_pass, role_value, 'Pending', 0))
+                    st.success("Registration Successful! Please complete your payment to activate.")
+                    st.session_state.show_payment = True
+                except sqlite3.IntegrityError:
+                    st.error("This email is already registered!")
             else:
-                st.warning("⚠️ ସମସ୍ତ ଫିଲ୍ଡ (Fields) ଭରଣ କରନ୍ତୁ!")
-    else:
-        st.success("✨ OTP Generated Successfully!")
-        st.markdown(f"### 🔑 Your Secure Verification OTP: **`{st.session_state.generated_otp}`**")
-        st.info(f"Enter this OTP below to verify your account for **{st.session_state.temp_user_data.get('email')}**.")
-        
-        entered_otp = st.text_input("Enter 4-digit OTP", max_chars=4)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Verify & Complete Registration"):
-                if entered_otp == st.session_state.generated_otp:
-                    email = st.session_state.temp_user_data["email"]
-                    st.session_state.registered_users[email] = st.session_state.temp_user_data
-                    st.success("🎉 ଆକାଉଣ୍ଟ୍ ସଫଳତାର ସହିତ ତିଆରି ହୋଇଗଲା! ଏବେ ଆପଣ Login କରିପାରିବେ।")
-                    st.session_state.otp_sent = False
-                    st.session_state.generated_otp = ""
-                    st.session_state.temp_user_data = {}
-                    st.rerun()
-                else:
-                    st.error("❌ ଭୁଲ୍ OTP! ପୁଣିଥରେ ଚେଷ୍ଟା କରନ୍ତୁ।")
-        with col2:
-            if st.button("🔄 Cancel / Resend"):
-                st.session_state.otp_sent = False
-                st.rerun()
+                st.warning("Please fill all fields.")
 
-# ----------------- LOGIN PAGE -----------------
+    # Payment Gateway Mockup
+    if st.session_state.get("show_payment"):
+        st.markdown("---")
+        st.subheader("💳 Complete Payment")
+        st.write("Scan the QR code below and pay **₹4,999** for Lifetime Access.")
+        st.image("https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg", width=150)
+        st.info("After payment, Super Admin will verify and activate your account within 1 hour.")
+
 elif menu == "Login":
-    st.markdown('<div class="main-header">🔐 Login to Studio</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Access your personal AI creation dashboard</div>', unsafe_allow_html=True)
+    st.title("🔐 Login to Kulu ERP")
+    l_email = st.text_input("Email")
+    l_pass = st.text_input("Password", type="password")
     
-    login_type = st.radio("Select Login Type", ["Master Admin", "Registered User"], horizontal=True)
-    
-    if login_type == "Master Admin":
-        st.info("Master Admin login credentials are pre-configured for instant access:")
-        if st.button("🚀 Launch Master Admin Panel"):
-            st.session_state.logged_in = True
-            st.session_state.is_admin = True
-            st.session_state.current_user = "admin@kulusutar.in"
-            st.success("Master Admin ଲଗଇନ୍ ସଫଳ ହେଲା!")
-            st.rerun()
-    else:
-        u_email = st.text_input("Registered Email")
-        u_pass = st.text_input("Password", type="password")
-        if st.button("🔑 User Login"):
-            if u_email in st.session_state.registered_users:
-                if st.session_state.registered_users[u_email]["password"] == u_pass:
-                    st.session_state.logged_in = True
-                    st.session_state.is_admin = False
-                    st.session_state.current_user = u_email
-                    st.success("🎉 ସଫଳତାର ସହିତ ଲଗଇନ୍ ହେଲା!")
-                    st.rerun()
-                else:
-                    st.error("❌ ଭୁଲ୍ ପାସୱାର୍ଡ!")
+    if st.button("Login"):
+        user = run_query("SELECT name, role, approved FROM users WHERE email=? AND password=?", (l_email, l_pass))
+        if user:
+            if user[0][2] == 1: # If approved
+                st.session_state.user_email = l_email
+                st.session_state.user_role = user[0][1]
+                st.success(f"Welcome {user[0][0]}!")
+                st.rerun()
             else:
-                st.error("❌ ଏହି ଇମେଲ୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହିଁ!")
-
-# ----------------- AI MASTER VIDEO STUDIO -----------------
-elif menu == "AI Master Video Studio":
-    st.markdown('<div class="main-header">🎬 Kulu AI Master Video Studio Pro</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sub-header">Welcome, {st.session_state.current_user}! Upload your photo and generate your custom AI video studio output.</div>', unsafe_allow_html=True)
-    
-    if st.session_state.logged_in:
-        # 1. Photo Upload
-        uploaded_photo = st.file_uploader("📸 Upload Your Source Photo (100% Face-Match)", type=["jpg", "jpeg", "png"])
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            video_title = st.text_input("Video Topic / Title", value="bmw gadi chaleki jauchi")
-        with col2:
-            duration_choice = st.selectbox("Select Video Duration", ["5 Minutes (Short Reel)", "10 Minutes (Medium Feature)", "15 Minutes (Full Epic Masterpiece)"])
-        
-        user_prompt = st.text_area("✍️ Enter Detailed Animation & Scene Prompt:", value="roadare chaluchi au batare gadire ulheiki hotelku gala, cinematic lighting, 4K ultra-realistic quality...")
-        
-        if st.button("🚀 Render & Play AI Video"):
-            if uploaded_photo is not None and user_prompt and video_title:
-                with st.spinner(f"Mapping your photo & rendering your custom {duration_choice} AI video... Please wait!"):
-                    st.success("✨ AI Video Successfully Rendered & Loaded!")
-                    
-                    st.markdown("---")
-                    st.markdown("### 🎥 Playable AI Video Output:")
-                    
-                    # High-speed reliable video stream
-                    st.video("https://www.w3schools.com/html/mov_bbb.mp4")
-                    
-                    col_info1, col_info2 = st.columns(2)
-                    with col_info1:
-                        st.image(uploaded_photo, caption="Source Photo Matched", width=220)
-                    with col_info2:
-                        st.markdown('<div class="card">', unsafe_allow_html=True)
-                        st.markdown(f"### 📋 Render Summary")
-                        st.write(f"**Title:** {video_title}")
-                        st.write(f"**Duration:** {duration_choice}")
-                        st.write(f"**Creator:** {st.session_state.current_user}")
-                        st.write(f"**Status:** Rendered Successfully! ✅")
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    st.markdown("---")
-                    st.balloons()
-            else:
-                st.warning("⚠️ ଦୟାକରି ପ୍ରଥମେ ଗୋଟିଏ ଫଟୋ ଅପ୍‌ଲୋଡ୍ କରନ୍ତୁ ଏବଂ ସମସ୍ତ ଫିଲ୍ଡ ଭରଣ କରନ୍ତୁ!")
-    else:
-        st.warning("🔒 ଏହି ଷ୍ଟୁଡିଓ ବ୍ୟବହାର କରିବା ପାଇଁ ପ୍ରଥମେ Login କରନ୍ତୁ!")
-
-# ----------------- ADMIN DASHBOARD -----------------
-elif menu == "Admin Dashboard":
-    st.markdown('<div class="main-header">📊 Master Admin Panel</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Complete management control for Kulu AI Studio</div>', unsafe_allow_html=True)
-    
-    if st.session_state.logged_in and st.session_state.is_admin:
-        st.success("✅ ସ୍ୱାଗତମ୍! ଆପଣ Master Admin ଭାବରେ ଲଗଇନ୍ ଅଛନ୍ତି।")
-        
-        st.subheader("👥 Registered Users Database:")
-        if len(st.session_state.registered_users) > 0:
-            for email, data in st.session_state.registered_users.items():
-                st.markdown(f'<div class="card">👤 <b>Name:</b> {data["name"]} | 📧 <b>Email:</b> {email} | 📞 <b>Mobile:</b> {data["mobile"]}</div>', unsafe_allow_html=True)
+                st.error("❌ Your account is pending Super Admin approval. Please wait for payment verification.")
         else:
-            st.info("ℹ️ ବର୍ତ୍ତମାନ କୌଣସି ନୂଆ ୟୁଜର୍ ରେଜିଷ୍ଟର୍ ହୋଇନାହାନ୍ତି।")
-    else:
-        st.warning("⚠️ ଏହି ପେଜ୍ ଦେଖିବା ପାଇଁ ପ୍ରଥମେ Login ମେନୁରୁ Master Admin ଲଗଇନ୍ କରନ୍ତୁ!")
+            st.error("Invalid Email or Password.")
+
+elif menu == "Logout":
+    st.session_state.user_email = None
+    st.session_state.user_role = None
+    st.rerun()
+
+# ==========================================
+# 5. DASHBOARDS (Role Based)
+# ==========================================
+elif menu == "Dashboard":
+    
+    # ---------------- SUPER ADMIN ----------------
+    if st.session_state.user_role == "SuperAdmin":
+        st.title("👑 Super Admin Control Panel")
+        st.write("Welcome, Master Admin. Manage your software clients and earnings here.")
+        
+        st.subheader("Pending Software Approvals")
+        pending_users = run_query("SELECT id, name, email, role FROM users WHERE approved=0")
+        if pending_users:
+            df_pending = pd.DataFrame(pending_users, columns=["ID", "Name", "Email", "Role"])
+            st.table(df_pending)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                app_email = st.selectbox("Select User to Approve", df_pending['Email'])
+            with col2:
+                if st.button("✅ Verify Payment & Approve"):
+                    run_query("UPDATE users SET approved=1, payment_status='Paid' WHERE email=?", (app_email,))
+                    st.success(f"User {app_email} activated successfully!")
+                    st.rerun()
+        else:
+            st.info("No pending approvals.")
+            
+        st.markdown("---")
+        st.subheader("💰 Total Earnings")
+        total_paid = run_query("SELECT COUNT(*) FROM users WHERE payment_status='Paid' AND role != 'SuperAdmin'")[0][0]
+        st.metric(label="Total Software Sold", value=f"{total_paid} Clients", delta=f"₹ {total_paid * 4999}")
+
+    # ---------------- WHOLESALER ----------------
+    elif st.session_state.user_role == "Wholesaler":
+        st.title("🏢 Wholesaler Master Dashboard")
+        st.write("Control your 100 shops, view overall stock, and balance sheets.")
+        
+        tab1, tab2, tab3 = st.tabs(["Global Stock", "Balance Sheet & Dues", "Manage Shops"])
+        with tab1:
+            st.subheader("All Shops Inventory View")
+            st.info("Data from all connected retail shops will appear here.")
+            # We will add global inventory logic here next
+        with tab2:
+            st.subheader("Total Sales & Profit")
+            st.info("Overall GST and Non-GST bills calculation will be displayed here.")
+        with tab3:
+            st.subheader("Add / Remove Retail Shops")
+            st.button("Add New Retail Shop")
+
+    # ---------------- RETAIL SHOP ----------------
+    elif st.session_state.user_role == "Shop":
+        st.title("🏪 Retail Shop Billing & Inventory")
+        
+        tab1, tab2, tab3 = st.tabs(["New Sale (Billing)", "My Inventory", "Daily Profit"])
+        with tab1:
+            st.subheader("Create New Bill")
+            bill_type = st.radio("Bill Type", ["Auto GST Bill", "Non-GST Bill"], horizontal=True)
+            st.text_input("Customer Name")
+            st.selectbox("Select Item", ["Item 1", "Item 2"])
+            st.number_input("Quantity", min_value=1)
+            st.button("Generate & Print PDF Bill")
+            
+        with tab2:
+            st.subheader("Manage Stock")
+            st.button("Add New Product")
+            
+        with tab3:
+            st.subheader("Today's Performance")
+            st.metric(label="Total Sales", value="₹0.00")
+            st.metric(label="Net Profit", value="₹0.00")

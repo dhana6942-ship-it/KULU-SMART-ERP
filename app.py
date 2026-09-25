@@ -2,27 +2,40 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import random
+import string
 
 # ==========================================
-# 1. DATABASE SETUP
+# 1. DATABASE SETUP (With Recovery & License)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
     c = conn.cursor()
+    
+    # Users Table
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, 
-                 payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT)''')
+                 payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT,
+                 utr_no TEXT, paid_amount REAL, package_type TEXT, license_key TEXT, is_deleted INTEGER DEFAULT 0)''')
+                 
+    # Admin Settings Table (Dynamic Pricing & UPI)
+    c.execute('''CREATE TABLE IF NOT EXISTS admin_settings
+                 (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     
+    # Update older columns safely
     try:
-        c.execute("ALTER TABLE users ADD COLUMN aadhar TEXT")
-        c.execute("ALTER TABLE users ADD COLUMN pan TEXT")
-        c.execute("ALTER TABLE users ADD COLUMN gst TEXT")
-        c.execute("ALTER TABLE users ADD COLUMN mobile TEXT")
+        c.execute("ALTER TABLE users ADD COLUMN utr_no TEXT")
+        c.execute("ALTER TABLE users ADD COLUMN paid_amount REAL")
+        c.execute("ALTER TABLE users ADD COLUMN package_type TEXT")
+        c.execute("ALTER TABLE users ADD COLUMN license_key TEXT")
+        c.execute("ALTER TABLE users ADD COLUMN is_deleted INTEGER DEFAULT 0")
     except:
         pass
 
-    c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved) VALUES (?, ?, ?, ?, ?, ?)",
-              ('Super Admin', 'admin@kulusutar.in', 'admin123', 'SuperAdmin', 'Paid', 1))
+    c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              ('Super Admin', 'admin@kulusutar.in', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
+              
+    c.execute("INSERT OR IGNORE INTO admin_settings (id, upi_id, monthly_price, yearly_price, lifetime_price, soft_gst) VALUES (1, 'kulusutar@ybl', 499, 4999, 9999, 18)")
+    
     conn.commit()
     conn.close()
 
@@ -37,12 +50,14 @@ def run_query(query, params=()):
     conn.close()
     return data
 
+def generate_license():
+    return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
+
 # ==========================================
 # 2. PAGE CONFIG & CUSTOM CSS 
 # ==========================================
 st.set_page_config(page_title="Kulu ERP Master", layout="wide", page_icon="🏢")
 
-# Hide default sidebar completely when not logged in
 st.markdown("""
     <style>
     .card-admin { background-color: #ffebee; padding: 20px; border-radius: 10px; border-top: 5px solid #f44336; text-align: center; margin-bottom: 15px;}
@@ -58,190 +73,168 @@ st.markdown("""
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Home Ground"
 if "login_role" not in st.session_state: st.session_state.login_role = None
-if "user_email" not in st.session_state: st.session_state.user_email = None
-if "user_role" not in st.session_state: st.session_state.user_role = None
-if "user_name" not in st.session_state: st.session_state.user_name = None
-if "forgot_step" not in st.session_state: st.session_state.forgot_step = 1
 
 # ==========================================
-# 4. ROUTING & VIEWS
+# 4. APP ROUTING
 # ==========================================
 if st.session_state.logged_in:
-    # --- LOGGED IN: SHOW SIDEBAR ---
     menu = st.sidebar.radio("Navigation", ["My Dashboard", "Logout"])
     
     if menu == "Logout":
         st.session_state.logged_in = False
-        st.session_state.user_email = None
-        st.session_state.user_role = None
-        st.session_state.user_name = None
         st.session_state.current_page = "Home Ground"
         st.rerun()
         
     elif menu == "My Dashboard":
-        st.markdown(f"### 👋 Welcome, {st.session_state.user_name} ({st.session_state.user_role})")
-        st.markdown("---")
+        # Fetch Latest Settings
+        settings = run_query("SELECT upi_id, monthly_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
         
         # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             st.title("👑 Super Admin Control Panel")
-            pending_users = run_query("SELECT name, email, role, mobile FROM users WHERE approved=0 AND role != 'SuperAdmin'")
-            if pending_users:
-                st.dataframe(pd.DataFrame(pending_users, columns=["Name", "Email", "Role", "Mobile"]))
-                app_email = st.selectbox("Select User to Verify Payment", [u[1] for u in pending_users])
-                if st.button("✅ Verify Payment & Activate Account"):
-                    run_query("UPDATE users SET approved=1, payment_status='Paid' WHERE email=?", (app_email,))
-                    st.success(f"{app_email} is now Active!")
-                    st.rerun()
-            else:
-                st.info("No pending approvals.")
+            tab1, tab2, tab3 = st.tabs(["🛡️ Client Approvals", "⚙️ Pricing & UPI Settings", "♻️ Data Recovery"])
+            
+            with tab1:
+                st.subheader("Pending & Active Clients")
+                users = run_query("SELECT id, name, email, role, package_type, utr_no, paid_amount, license_key, approved FROM users WHERE role != 'SuperAdmin' AND is_deleted=0")
+                if users:
+                    df = pd.DataFrame(users, columns=["ID", "Name", "Email", "Role", "Package", "UTR No", "Amount Paid", "License Key", "Status"])
+                    df["Status"] = df["Status"].apply(lambda x: "Active" if x==1 else "Pending")
+                    st.dataframe(df, use_container_width=True)
+                    
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        app_email = st.selectbox("Select User Email", df['Email'])
+                    with c2:
+                        if st.button("✅ Approve & Generate License"):
+                            new_key = generate_license()
+                            run_query("UPDATE users SET approved=1, payment_status='Paid', license_key=? WHERE email=?", (new_key, app_email))
+                            st.success(f"Approved! License Key: {new_key}")
+                            st.rerun()
+                    with c3:
+                        if st.button("🗑️ Delete/Suspend User"):
+                            run_query("UPDATE users SET is_deleted=1 WHERE email=?", (app_email,))
+                            st.warning("User moved to Data Recovery.")
+                            st.rerun()
+                else:
+                    st.info("No active or pending clients.")
+            
+            with tab2:
+                st.subheader("Set Software Prices & Payment Details")
+                with st.form("admin_settings"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        n_upi = st.text_input("Your UPI ID", value=settings[0])
+                        n_mon = st.number_input("Monthly Package Price (₹)", value=float(settings[1]))
+                        n_year = st.number_input("1 Year Package Price (₹)", value=float(settings[2]))
+                    with col2:
+                        n_life = st.number_input("Lifetime Package Price (₹)", value=float(settings[3]))
+                        n_gst = st.number_input("GST on Software (%)", value=float(settings[4]))
+                        
+                    if st.form_submit_button("Update Settings"):
+                        run_query("UPDATE admin_settings SET upi_id=?, monthly_price=?, yearly_price=?, lifetime_price=?, soft_gst=? WHERE id=1",
+                                  (n_upi, n_mon, n_year, n_life, n_gst))
+                        st.success("Software Pricing & Settings Updated!")
+                        st.rerun()
 
-        # ---------------- WHOLESALER ----------------
-        elif st.session_state.user_role == "Wholesaler":
-            st.title("🏢 Wholesaler Master Terminal")
-            tab1, tab2 = st.tabs(["Global Network Stock", "Dues & Balance Sheet"])
-            with tab1: st.info("Multi-shop inventory will sync here.")
-            with tab2: st.info("Pending shop balances will display here.")
+            with tab3:
+                st.subheader("♻️ Recover Deleted Accounts")
+                del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1")
+                if del_users:
+                    for d_u in del_users:
+                        col1, col2 = st.columns([3, 1])
+                        col1.write(f"🗑️ {d_u[1]} ({d_u[2]}) - {d_u[0]}")
+                        if col2.button(f"Restore {d_u[0]}"):
+                            run_query("UPDATE users SET is_deleted=0 WHERE email=?", (d_u[0],))
+                            st.success("Account Restored Successfully!")
+                            st.rerun()
+                else:
+                    st.info("Recycle Bin is empty. No deleted data.")
 
-        # ---------------- RETAIL SHOP ----------------
-        elif st.session_state.user_role == "Shop":
-            st.title("🏪 Retail Shop Billing & Inventory")
-            tab1, tab2 = st.tabs(["New GST/Non-GST Bill", "My Inventory"])
-            with tab1: st.info("Auto GST calculation & PDF generation module.")
-            with tab2: st.info("Add products and update stock module.")
+        # ---------------- WHOLESALER / SHOP ----------------
+        else:
+            st.title(f"🏢 {st.session_state.user_role} Dashboard")
+            my_data = run_query("SELECT license_key, package_type FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            st.info(f"**Your License Key:** {my_data[0] if my_data[0] else 'Pending Admin Approval'} | **Package:** {my_data[1]}")
 
 else:
-    # --- LOGGED OUT: HIDE SIDEBAR, USE MAIN PAGE FOR NAVIGATION ---
-    
+    # --- LOGGED OUT VIEWS ---
     if st.session_state.current_page == "Home Ground":
         st.markdown('<div class="main-title">🏢 Kulu Smart ERP & Billing System</div>', unsafe_allow_html=True)
-        
         col1, col2, col3 = st.columns(3)
-        
         with col1:
-            st.markdown('<div class="card-admin"><h3>👑 Super Admin</h3><p>Manage software clients, approve payments, and track earnings.</p></div>', unsafe_allow_html=True)
-            if st.button("🔐 Login as Admin", use_container_width=True):
-                st.session_state.current_page = "Login"
-                st.session_state.login_role = "SuperAdmin"
-                st.rerun()
-                
+            st.markdown('<div class="card-admin"><h3>👑 Super Admin</h3><p>Manage pricing, approve UTR, issue licenses.</p></div>', unsafe_allow_html=True)
+            if st.button("🔐 Login as Admin", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "SuperAdmin"; st.rerun()
         with col2:
-            st.markdown('<div class="card-whole"><h3>🏢 Wholesaler</h3><p>Control 100+ retail shops, track global inventory & balance sheets.</p></div>', unsafe_allow_html=True)
-            if st.button("🔐 Login as Wholesaler", use_container_width=True):
-                st.session_state.current_page = "Login"
-                st.session_state.login_role = "Wholesaler"
-                st.rerun()
-                
+            st.markdown('<div class="card-whole"><h3>🏢 Wholesaler</h3><p>Control 100+ retail shops globally.</p></div>', unsafe_allow_html=True)
+            if st.button("🔐 Login as Wholesaler", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Wholesaler"; st.rerun()
         with col3:
-            st.markdown('<div class="card-shop"><h3>🏪 Retail Shop</h3><p>Generate smart GST/Non-GST bills and manage daily local stock.</p></div>', unsafe_allow_html=True)
-            if st.button("🔐 Login as Shop", use_container_width=True):
-                st.session_state.current_page = "Login"
-                st.session_state.login_role = "Shop"
-                st.rerun()
+            st.markdown('<div class="card-shop"><h3>🏪 Retail Shop</h3><p>Smart GST/Non-GST bills & local stock.</p></div>', unsafe_allow_html=True)
+            if st.button("🔐 Login as Shop", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Shop"; st.rerun()
             
         st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🛒 Register (Buy Software)"):
-                st.session_state.current_page = "Register"
-                st.rerun()
-        with c2:
-            if st.button("🔑 Forgot Password"):
-                st.session_state.current_page = "Forgot Password"
-                st.rerun()
+        if st.button("🛒 Register (Buy Software)"): st.session_state.current_page = "Register"; st.rerun()
 
-    # ---------------- LOGIN PAGE ----------------
+    # ---------------- LOGIN ----------------
     elif st.session_state.current_page == "Login":
-        if st.button("⬅️ Back to Home"):
-            st.session_state.current_page = "Home Ground"
-            st.rerun()
-            
+        if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title(f"🔐 {st.session_state.login_role} Login")
-        st.write("Enter your ID and password to access your dashboard.")
-        
-        l_email = st.text_input("Email (Unique ID)")
+        l_email = st.text_input("Email")
         l_pass = st.text_input("Password", type="password")
-        
-        if st.button("🚀 Login"):
-            if l_email and l_pass:
-                user = run_query("SELECT name, role, approved FROM users WHERE email=? AND password=?", (l_email, l_pass))
-                if user:
-                    # Check if the role matches the button they clicked
-                    if user[0][1] == st.session_state.login_role:
-                        if user[0][2] == 1: # Approved
-                            st.session_state.logged_in = True
-                            st.session_state.user_name = user[0][0]
-                            st.session_state.user_role = user[0][1]
-                            st.session_state.user_email = l_email
-                            st.rerun()
-                        else:
-                            st.error("❌ Your account is pending Super Admin payment verification.")
+        if st.button("Login"):
+            user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, l_pass))
+            if user:
+                if user[0][3] == 1:
+                    st.error("❌ Your account has been Suspended/Deleted by Admin.")
+                elif user[0][1] == st.session_state.login_role:
+                    if user[0][2] == 1:
+                        st.session_state.logged_in = True
+                        st.session_state.user_role = user[0][1]
+                        st.session_state.user_email = l_email
+                        st.rerun()
                     else:
-                        st.error(f"❌ Role Mismatch! You are registered as '{user[0][1]}'. Please use the correct login section.")
+                        st.warning("⏳ Payment pending approval. Waiting for License Key.")
                 else:
-                    st.error("❌ Invalid Email or Password.")
+                    st.error("❌ Role Mismatch.")
             else:
-                st.warning("Please enter both Email and Password.")
+                st.error("Invalid Credentials.")
 
-    # ---------------- REGISTER PAGE ----------------
+    # ---------------- REGISTER & PAYMENT ----------------
     elif st.session_state.current_page == "Register":
-        if st.button("⬅️ Back to Home"):
-            st.session_state.current_page = "Home Ground"
-            st.rerun()
-            
+        if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
+        
         st.title("🛒 Buy Kulu ERP Software")
+        settings = run_query("SELECT upi_id, monthly_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
+        gst_pct = settings[4]
+        
+        st.subheader("Step 1: Choose Package & Register")
         with st.form("reg_form"):
             r_role = st.selectbox("Role", ["Wholesaler", "Shop"])
             r_name = st.text_input("Business Name")
             r_email = st.text_input("Email")
             r_pass = st.text_input("Password", type="password")
-            r_mobile = st.text_input("Mobile")
-            submit = st.form_submit_button("Register & Pay")
+            
+            st.markdown("---")
+            p_type = st.radio("Select Software Package", [
+                f"Monthly (₹{settings[1]} + {gst_pct}% GST)", 
+                f"1 Year (₹{settings[2]} + {gst_pct}% GST)", 
+                f"Lifetime (₹{settings[3]} + {gst_pct}% GST)"
+            ])
+            
+            st.markdown(f"**Pay to UPI ID:** `{settings[0]}`")
+            r_utr = st.text_input("Enter UTR / Transaction No. (Required)")
+            r_amt = st.number_input("Total Amount Paid (Including GST)", min_value=0.0)
+            
+            submit = st.form_submit_button("Submit Registration & Payment")
             
             if submit:
-                if r_name and r_email and r_pass:
+                if r_name and r_email and r_pass and r_utr and r_amt > 0:
+                    pack = p_type.split(" ")[0]
                     try:
-                        run_query("INSERT INTO users (name, email, password, role, payment_status, approved, mobile) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                  (r_name, r_email, r_pass, r_role, 'Pending', 0, r_mobile))
-                        st.success("✅ Registration Saved! Please contact Super Admin with ₹4999 payment to activate.")
+                        run_query("INSERT INTO users (name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                  (r_name, r_email, r_pass, r_role, 'Pending', 0, r_utr, r_amt, pack))
+                        st.success("✅ Payment Submitted! Super Admin will verify your UTR and assign a License Key.")
                     except:
-                        st.error("❌ Email already exists.")
-
-    # ---------------- FORGOT PASSWORD ----------------
-    elif st.session_state.current_page == "Forgot Password":
-        if st.button("⬅️ Back to Home"):
-            st.session_state.current_page = "Home Ground"
-            st.rerun()
-            
-        st.title("🔑 Reset Password (All Users)")
-        if st.session_state.forgot_step == 1:
-            f_email = st.text_input("Enter your Registered Email")
-            if st.button("Send Reset OTP"):
-                check = run_query("SELECT email FROM users WHERE email=?", (f_email,))
-                if check:
-                    st.session_state.forgot_otp = str(random.randint(100000, 999999))
-                    st.session_state.forgot_email = f_email
-                    st.session_state.forgot_step = 2
-                    st.rerun()
+                        st.error("❌ Email already registered.")
                 else:
-                    st.error("❌ Email not found in our system.")
-                    
-        elif st.session_state.forgot_step == 2:
-            st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.forgot_otp}** )")
-            e_otp = st.text_input("Enter 6-digit OTP")
-            if st.button("Verify OTP"):
-                if e_otp == st.session_state.forgot_otp:
-                    st.session_state.forgot_step = 3
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid OTP.")
-                    
-        elif st.session_state.forgot_step == 3:
-            new_pass = st.text_input("Enter New Password", type="password")
-            if st.button("Update Password"):
-                if new_pass:
-                    run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                    st.success("✅ Password updated! Click 'Back to Home' to Login.")
-                    st.session_state.forgot_step = 1
-                else:
-                    st.warning("Password cannot be empty.")
+                    st.warning("Please fill all fields and enter valid UTR/Amount.")

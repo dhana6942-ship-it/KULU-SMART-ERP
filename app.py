@@ -3,9 +3,10 @@ import sqlite3
 import pandas as pd
 import random
 import string
+from datetime import date
 
 # ==========================================
-# 1. DATABASE SETUP (100% Bug-Free Schema Update)
+# 1. DATABASE SETUP
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
@@ -18,6 +19,12 @@ def init_db():
                  
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings
                  (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
+                 
+    c.execute('''CREATE TABLE IF NOT EXISTS inventory
+                 (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL)''')
+                 
+    c.execute('''CREATE TABLE IF NOT EXISTS transactions
+                 (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER)''')
     
     # Safely add columns one by one without crashing
     cols_to_add = [
@@ -30,9 +37,8 @@ def init_db():
         try:
             c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
         except sqlite3.OperationalError:
-            pass # Ignore if column already exists
+            pass 
 
-    # Insert default admin and settings
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)",
               ('Super Admin', 'admin@kulusutar.in', 'admin123', 'SuperAdmin', 'Paid', 1, 0))
               
@@ -41,7 +47,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Initialize DB on app start
 init_db()
 
 def run_query(query, params=()):
@@ -76,7 +81,6 @@ st.markdown("""
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Home Ground"
 if "login_role" not in st.session_state: st.session_state.login_role = None
-if "admin_update_step" not in st.session_state: st.session_state.admin_update_step = 1
 
 # ==========================================
 # 4. APP ROUTING
@@ -108,8 +112,7 @@ if st.session_state.logged_in:
                     st.dataframe(df, use_container_width=True)
                     
                     c1, c2, c3 = st.columns(3)
-                    with c1:
-                        app_email = st.selectbox("Select User Email", df['Email'])
+                    with c1: app_email = st.selectbox("Select User Email", df['Email'])
                     with c2:
                         if st.button("✅ Approve & Generate License"):
                             new_key = generate_license()
@@ -121,8 +124,7 @@ if st.session_state.logged_in:
                             run_query("UPDATE users SET is_deleted=1 WHERE email=?", (app_email,))
                             st.warning("User moved to Data Recovery.")
                             st.rerun()
-                else:
-                    st.info("No active or pending clients.")
+                else: st.info("No active or pending clients.")
             
             with tab2:
                 st.subheader("Set Software Prices & Payment Details")
@@ -135,7 +137,6 @@ if st.session_state.logged_in:
                     with col2:
                         n_life = st.number_input("Lifetime Package Price (₹)", value=float(settings[3]))
                         n_gst = st.number_input("GST on Software (%)", value=float(settings[4]))
-                        
                     if st.form_submit_button("Update Settings"):
                         run_query("UPDATE admin_settings SET upi_id=?, monthly_price=?, yearly_price=?, lifetime_price=?, soft_gst=? WHERE id=1",
                                   (n_upi, n_mon, n_year, n_life, n_gst))
@@ -153,12 +154,12 @@ if st.session_state.logged_in:
                             run_query("UPDATE users SET is_deleted=0 WHERE email=?", (d_u[0],))
                             st.success("Account Restored Successfully!")
                             st.rerun()
-                else:
-                    st.info("Recycle Bin is empty. No deleted data.")
+                else: st.info("Recycle Bin is empty. No deleted data.")
 
             with tab4:
                 st.subheader("🔐 Update Admin ID & Password")
                 curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
+                if "admin_update_step" not in st.session_state: st.session_state.admin_update_step = 1
                 
                 if st.session_state.admin_update_step == 1:
                     col1, col2 = st.columns(2)
@@ -167,7 +168,6 @@ if st.session_state.logged_in:
                         new_mobile = st.text_input("New Mobile No.", value=curr_admin[1] if curr_admin[1] else "")
                     with col2:
                         new_pass = st.text_input("New Password", type="password", value=curr_admin[2])
-                        
                     if st.button("📩 Send OTP to Confirm Changes"):
                         st.session_state.admin_otp = str(random.randint(100000, 999999))
                         st.session_state.update_data = {"email": new_email, "mobile": new_mobile, "pass": new_pass}
@@ -175,9 +175,8 @@ if st.session_state.logged_in:
                         st.rerun()
                         
                 elif st.session_state.admin_update_step == 2:
-                    st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.admin_otp}** ) sent to {st.session_state.user_email}")
+                    st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.admin_otp}** )")
                     e_otp = st.text_input("Enter 6-digit OTP")
-                    
                     c1, c2 = st.columns(2)
                     with c1:
                         if st.button("✅ Verify & Save Changes"):
@@ -190,10 +189,8 @@ if st.session_state.logged_in:
                                     st.session_state.user_email = d['email']
                                     st.session_state.admin_update_step = 1
                                     st.rerun()
-                                except sqlite3.IntegrityError:
-                                    st.error("❌ ଏହି ଇମେଲ୍ ID ପୂର୍ବରୁ ରେଜିଷ୍ଟର୍ ହୋଇଛି! ଏକ ନୂଆ ଇମେଲ୍ ଦିଅନ୍ତୁ।")
-                            else:
-                                st.error("❌ Invalid OTP.")
+                                except sqlite3.IntegrityError: st.error("❌ Email ID already registered!")
+                            else: st.error("❌ Invalid OTP.")
                     with c2:
                         if st.button("🚫 Cancel"):
                             st.session_state.admin_update_step = 1
@@ -205,18 +202,15 @@ if st.session_state.logged_in:
                 if clients_with_photos:
                     for cl in clients_with_photos:
                         col1, col2 = st.columns([1, 3])
-                        with col1:
-                            st.image(cl[3], width=120)
+                        with col1: st.image(cl[3], width=120)
                         with col2:
-                            st.write(f"**Business Name:** {cl[1]} ({cl[2]})")
-                            st.write(f"**Email ID:** {cl[0]}")
+                            st.write(f"**Business Name:** {cl[1]} ({cl[2]}) | **Email ID:** {cl[0]}")
                             if st.button(f"🗑️ Remove Photo of {cl[1]}", key=f"del_{cl[0]}"):
                                 run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (cl[0],))
                                 st.success("Photo removed successfully!")
                                 st.rerun()
                         st.markdown("---")
-                else:
-                    st.info("No clients have uploaded their shop photos yet.")
+                else: st.info("No clients have uploaded their shop photos yet.")
 
         # ---------------- WHOLESALER / SHOP DASHBOARD ----------------
         else:
@@ -227,34 +221,117 @@ if st.session_state.logged_in:
                 st.title(f"🏢 {my_data[3]} ({st.session_state.user_role})")
                 st.info(f"**License Key:** {my_data[0] if my_data[0] else 'Pending Approval'} | **Package:** {my_data[1]}")
             with c2:
-                if my_data[2]:
-                    st.image(my_data[2], width=120, caption="Shop Photo")
-                else:
-                    st.write("📷 No Shop Photo")
-                    
-            tab1, tab2, tab3 = st.tabs(["📊 Business Stats", "📦 Inventory / Bills", "📸 Upload Shop Photo"])
+                if my_data[2]: st.image(my_data[2], width=120)
+                else: st.write("📷 No Shop Photo")
             
-            with tab1: st.info("Daily sales and metrics will be displayed here.")
-            with tab2: st.info("Billing and Inventory modules will be added here.")
-            
-            with tab3:
-                st.subheader("📸 Set Your Profile / Shop Photo")
-                uploaded_photo = st.file_uploader("Choose a valid image file", type=["jpg", "jpeg", "png"])
-                if uploaded_photo is not None:
-                    if st.button("💾 Save Photo"):
-                        photo_bytes = uploaded_photo.getvalue()
-                        run_query("UPDATE users SET shop_photo=? WHERE email=?", (photo_bytes, st.session_state.user_email))
-                        st.success("🎉 Photo successfully uploaded!")
-                        st.rerun()
+            # Lock features if not approved by Admin
+            if my_data[0] is None:
+                st.warning("⚠️ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ଏପର୍ଯ୍ୟନ୍ତ Super Admin ଙ୍କ ଦ୍ୱାରା ଆପ୍ରୁଭ୍ ହୋଇନାହିଁ। ଦୟାକରି License Key ପାଇବା ପର୍ଯ୍ୟନ୍ତ ଅପେକ୍ଷା କରନ୍ତୁ।")
+            else:
+                tab1, tab2, tab3, tab4 = st.tabs(["📊 Business Stats", "📦 Manage Inventory", "🧾 Smart Billing", "📸 Shop Photo"])
                 
-                if my_data[2]:
+                with tab1:
+                    st.subheader("📊 Today's Performance")
+                    today_str = str(date.today())
+                    sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND date=?", (st.session_state.user_email, today_str))[0]
+                    
+                    col1, col2 = st.columns(2)
+                    col1.metric("Today's Total Sales", f"₹ {sales[0] if sales[0] else 0.0}")
+                    col2.metric("Today's Net Profit", f"₹ {sales[1] if sales[1] else 0.0}")
+                    
                     st.markdown("---")
-                    st.write("### Your Current Photo:")
-                    st.image(my_data[2], width=300)
-                    if st.button("🗑️ Delete My Photo"):
-                        run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (st.session_state.user_email,))
-                        st.success("Your photo has been deleted.")
-                        st.rerun()
+                    st.subheader("Recent Transactions")
+                    recent_txn = run_query("SELECT date, item_name, qty, total_price, profit, is_gst FROM transactions WHERE shop_email=? ORDER BY id DESC LIMIT 10", (st.session_state.user_email,))
+                    if recent_txn:
+                        df_txn = pd.DataFrame(recent_txn, columns=["Date", "Item", "Qty", "Total (₹)", "Profit (₹)", "GST Bill?"])
+                        df_txn["GST Bill?"] = df_txn["GST Bill?"].apply(lambda x: "Yes" if x==1 else "No")
+                        st.dataframe(df_txn, use_container_width=True)
+                    else: st.info("No sales recorded yet.")
+
+                with tab2:
+                    st.subheader("📦 Add New Product to Stock")
+                    with st.form("add_inventory"):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            i_name = st.text_input("Product Name")
+                            i_stock = st.number_input("Stock Quantity", min_value=1)
+                        with col2:
+                            i_pprice = st.number_input("Purchase Price (₹)", min_value=0.0)
+                            i_sprice = st.number_input("Selling Price (₹)", min_value=0.0)
+                        with col3:
+                            i_gst = st.number_input("GST Rate (%)", min_value=0.0, value=18.0)
+                            
+                        if st.form_submit_button("➕ Add to Inventory"):
+                            if i_name and i_sprice > i_pprice:
+                                run_query("INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate) VALUES (?, ?, ?, ?, ?, ?)",
+                                          (st.session_state.user_email, i_name, i_pprice, i_sprice, i_stock, i_gst))
+                                st.success(f"{i_name} added to stock!")
+                                st.rerun()
+                            else: st.error("❌ Invalid input. Selling Price must be greater than Purchase Price.")
+                                
+                    st.markdown("---")
+                    st.subheader("Current Available Stock")
+                    stock_data = run_query("SELECT id, item_name, purchase_price, selling_price, stock, gst_rate FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
+                    if stock_data:
+                        df_stock = pd.DataFrame(stock_data, columns=["ID", "Item Name", "Purchase (₹)", "Selling (₹)", "Available Stock", "GST %"])
+                        st.dataframe(df_stock, use_container_width=True)
+                    else: st.info("Inventory is empty. Please add products above.")
+
+                with tab3:
+                    st.subheader("🧾 Create New Bill")
+                    stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
+                    
+                    if stock_items:
+                        item_dict = {f"{item[1]} (Stock: {item[3]}) - ₹{item[2]}": item for item in stock_items}
+                        with st.form("billing_form"):
+                            sel_item = st.selectbox("Select Product to Sell", list(item_dict.keys()))
+                            b_qty = st.number_input("Quantity", min_value=1)
+                            is_gst_bill = st.checkbox("Calculate GST (Taxes Extra)")
+                            
+                            if st.form_submit_button("🧾 Generate Bill & Sell"):
+                                item_data = item_dict[sel_item]
+                                i_id, i_name, i_sprice, i_stock, i_gst, i_pprice = item_data
+                                
+                                if b_qty <= i_stock:
+                                    base_total = i_sprice * b_qty
+                                    total_cost = i_pprice * b_qty
+                                    
+                                    if is_gst_bill:
+                                        tax_amount = (base_total * i_gst) / 100
+                                        final_price = base_total + tax_amount
+                                    else:
+                                        final_price = base_total
+                                        
+                                    profit = final_price - total_cost
+                                    
+                                    # Deduct Stock & Record Sale
+                                    run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (b_qty, i_id))
+                                    run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                              (st.session_state.user_email, str(date.today()), i_name, b_qty, final_price, profit, 1 if is_gst_bill else 0))
+                                    
+                                    st.success(f"✅ Bill Generated! Total: ₹ {final_price:.2f} | Profit Made: ₹ {profit:.2f}")
+                                    st.balloons()
+                                    st.rerun()
+                                else: st.error("❌ Not enough stock available for this product!")
+                    else: st.warning("No stock available! Please add products in the 'Manage Inventory' tab first.")
+
+                with tab4:
+                    st.subheader("📸 Set Your Profile / Shop Photo")
+                    uploaded_photo = st.file_uploader("Choose a valid image file", type=["jpg", "jpeg", "png"])
+                    if uploaded_photo is not None:
+                        if st.button("💾 Save Photo"):
+                            photo_bytes = uploaded_photo.getvalue()
+                            run_query("UPDATE users SET shop_photo=? WHERE email=?", (photo_bytes, st.session_state.user_email))
+                            st.success("🎉 Photo successfully uploaded!")
+                            st.rerun()
+                    if my_data[2]:
+                        st.markdown("---")
+                        st.write("### Your Current Photo:")
+                        st.image(my_data[2], width=300)
+                        if st.button("🗑️ Delete My Photo"):
+                            run_query("UPDATE users SET shop_photo=NULL WHERE email=?", (st.session_state.user_email,))
+                            st.success("Your photo has been deleted.")
+                            st.rerun()
 
 else:
     # --- LOGGED OUT VIEWS ---
@@ -287,30 +364,22 @@ else:
         if st.button("Login"):
             user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, l_pass))
             if user:
-                if user[0][3] == 1:
-                    st.error("❌ Your account has been Suspended/Deleted by Admin.")
+                if user[0][3] == 1: st.error("❌ Your account has been Suspended/Deleted by Admin.")
                 elif user[0][1] == st.session_state.login_role:
-                    if user[0][2] == 1:
-                        st.session_state.logged_in = True
-                        st.session_state.user_role = user[0][1]
-                        st.session_state.user_email = l_email
-                        st.rerun()
-                    else:
-                        st.warning("⏳ Payment pending approval. Waiting for License Key.")
-                else:
-                    st.error("❌ Role Mismatch.")
-            else:
-                st.error("Invalid Credentials.")
+                    st.session_state.logged_in = True
+                    st.session_state.user_role = user[0][1]
+                    st.session_state.user_email = l_email
+                    st.rerun()
+                else: st.error("❌ Role Mismatch.")
+            else: st.error("Invalid Credentials.")
 
     # ---------------- REGISTER & PAYMENT ----------------
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
-        
         st.title("🛒 Buy Kulu ERP Software")
         settings = run_query("SELECT upi_id, monthly_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
         gst_pct = settings[4]
         
-        st.subheader("Step 1: Choose Package & Register")
         with st.form("reg_form"):
             r_role = st.selectbox("Role", ["Wholesaler", "Shop"])
             r_name = st.text_input("Business Name")
@@ -328,55 +397,40 @@ else:
             r_utr = st.text_input("Enter UTR / Transaction No. (Required)")
             r_amt = st.number_input("Total Amount Paid (Including GST)", min_value=0.0)
             
-            submit = st.form_submit_button("Submit Registration & Payment")
-            
-            if submit:
+            if st.form_submit_button("Submit Registration & Payment"):
                 if r_name and r_email and r_pass and r_utr and r_amt > 0:
-                    pack = p_type.split(" ")[0]
                     try:
                         run_query("INSERT INTO users (name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                  (r_name, r_email, r_pass, r_role, 'Pending', 0, r_utr, r_amt, pack))
+                                  (r_name, r_email, r_pass, r_role, 'Pending', 0, r_utr, r_amt, p_type.split(" ")[0]))
                         st.success("✅ Payment Submitted! Super Admin will verify your UTR and assign a License Key.")
-                    except:
-                        st.error("❌ Email already registered.")
-                else:
-                    st.warning("Please fill all fields and enter valid UTR/Amount.")
+                    except: st.error("❌ Email already registered.")
+                else: st.warning("Please fill all fields and enter valid UTR/Amount.")
 
     # ---------------- FORGOT PASSWORD ----------------
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
-            
         st.title("🔑 Reset Password (All Users)")
         if "forgot_step" not in st.session_state: st.session_state.forgot_step = 1
         
         if st.session_state.forgot_step == 1:
             f_email = st.text_input("Enter your Registered Email")
             if st.button("Send Reset OTP"):
-                check = run_query("SELECT email FROM users WHERE email=?", (f_email,))
-                if check:
+                if run_query("SELECT email FROM users WHERE email=?", (f_email,)):
                     st.session_state.forgot_otp = str(random.randint(100000, 999999))
                     st.session_state.forgot_email = f_email
                     st.session_state.forgot_step = 2
                     st.rerun()
-                else:
-                    st.error("❌ Email not found in our system.")
+                else: st.error("❌ Email not found in our system.")
                     
         elif st.session_state.forgot_step == 2:
             st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.forgot_otp}** )")
-            e_otp = st.text_input("Enter 6-digit OTP")
-            if st.button("Verify OTP"):
-                if e_otp == st.session_state.forgot_otp:
-                    st.session_state.forgot_step = 3
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid OTP.")
+            if st.button("Verify OTP") and st.text_input("Enter 6-digit OTP") == st.session_state.forgot_otp:
+                st.session_state.forgot_step = 3
+                st.rerun()
                     
         elif st.session_state.forgot_step == 3:
             new_pass = st.text_input("Enter New Password", type="password")
-            if st.button("Update Password"):
-                if new_pass:
-                    run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                    st.success("✅ Password updated! Click 'Back to Home' to Login.")
-                    st.session_state.forgot_step = 1
-                else:
-                    st.warning("Password cannot be empty.")
+            if st.button("Update Password") and new_pass:
+                run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
+                st.success("✅ Password updated! Click 'Back to Home' to Login.")
+                st.session_state.forgot_step = 1

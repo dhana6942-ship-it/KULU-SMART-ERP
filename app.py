@@ -34,7 +34,7 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (ANTI-HANG WAL MODE)
+# 1. DATABASE SETUP
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
@@ -54,7 +54,7 @@ def init_db():
         try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
         except: pass 
         
-    admin_cols_to_add = [("demo_price", "REAL DEFAULT 99.0"), ("six_month_price", "REAL DEFAULT 2499.0"), ("notice_text", "TEXT DEFAULT 'Welcome to Kulu Smart ERP! Premium POS Software.'"), ("home_banner", "BLOB")]
+    admin_cols_to_add = [("demo_price", "REAL DEFAULT 99.0"), ("six_month_price", "REAL DEFAULT 2499.0"), ("notice_text", "TEXT DEFAULT 'WELCOME TO KULU SMART ERP! PREMIUM POS SOFTWARE.'"), ("home_banner", "BLOB")]
     for col, dtype in admin_cols_to_add:
         try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
         except: pass
@@ -73,7 +73,6 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", ('Super Admin', 'dhana6942@gmail.com', admin_hash, 'SuperAdmin', 'Paid', 1, 0))
     try:
         c.execute("UPDATE users SET role='SuperAdmin', password=?, approved=1, payment_status='Paid', is_deleted=0 WHERE email='dhana6942@gmail.com'", (admin_hash,))
-        c.execute("UPDATE users SET email='dhana6942@gmail.com', password=? WHERE email='admin@kulusutar.in' AND role='SuperAdmin'", (admin_hash,))
     except: pass
     c.execute("INSERT OR IGNORE INTO admin_settings (id, upi_id, monthly_price, yearly_price, lifetime_price, soft_gst) VALUES (1, 'kulusutar@ybl', 499, 4999, 9999, 18)")
     conn.commit()
@@ -122,7 +121,7 @@ def generate_gst_report_html(df_gst, tot_gst, shop_name):
     return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name.upper()}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
 
 # ==========================================
-# 2. PAGE CONFIG & PREMIUM INVISIBLE UI CSS
+# 2. PAGE CONFIG & UI CSS
 # ==========================================
 st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
@@ -134,14 +133,9 @@ st.markdown("""
     .stAppDeployButton, [data-testid="stAppDeployButton"], [data-testid="manage-app-button"] {display: none !important; visibility: hidden !important;}
     .viewerBadge_container, .viewerBadge_link, div[class*="viewerBadge"], div[class*="manage-app"] {display: none !important; visibility: hidden !important;}
     iframe[src*="badge"] {display: none !important; visibility: hidden !important;}
-    
-    /* 🔴 HIDE STREAMLIT BRANDING BADGE (CORNER WATERMARK) 🔴 */
     .stDecoration {display: none !important;}
-    footer {visibility: hidden !important; display: none !important;}
     .viewerBadge_link__1S_gx {display: none !important; visibility: hidden !important;}
     div[data-testid="stStatusWidget"] {visibility: hidden !important; display: none !important;}
-    #root > div:last-child > div:last-child {display: none !important; visibility: hidden !important;}
-    
     [data-testid="stToolbar"] {display: none !important; visibility: hidden !important;}
     .st-emotion-cache-16txtl3 {padding-top: 0rem;}
     
@@ -159,11 +153,9 @@ st.markdown("""
     
     .hero-container { 
         background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); 
-        background-size: 400% 400%; animation: gradientBG 12s ease infinite; 
         padding: 90px 20px; border-radius: 25px; color: white; text-align: center; 
         margin-bottom: 30px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); 
     }
-    @keyframes gradientBG { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
     .hero-title { font-size: 60px; font-weight: 900; margin-bottom: 15px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 3px 3px 10px rgba(0,0,0,0.5); }
     .hero-subtitle { font-size: 24px; font-weight: 300; opacity: 0.9; letter-spacing: 1.5px; }
     
@@ -196,13 +188,7 @@ st.markdown("""
         padding: 60px 40px; border-radius: 25px; text-align: center; 
         margin-top: 40px; box-shadow: 0 15px 35px rgba(0,0,0,0.08); 
         border: 1px solid rgba(0,0,0,0.05); 
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
     }
-    .register-section:hover {
-        transform: translateY(-15px) scale(1.02); 
-        box-shadow: 0 30px 50px rgba(0,0,0,0.15);
-    }
-    
     .footer { text-align: center; margin-top: 80px; padding-top: 25px; border-top: 1px solid #eaeaea; color: #999; font-size: 15px; font-weight: 600; letter-spacing: 1px; padding-bottom: 20px;}
     </style>
 """, unsafe_allow_html=True)
@@ -219,8 +205,6 @@ if st.session_state.logged_in:
         st.session_state.logged_in = False; st.session_state.user_email = None; st.session_state.user_role = None; st.session_state.current_page = "Home Ground"; st.rerun()
         
     elif menu == "Gateway of ERP":
-        
-        # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             admin_data = run_query("SELECT shop_photo FROM users WHERE email=?", (st.session_state.user_email,))[0]
             c1, c2 = st.columns([4, 1])
@@ -289,7 +273,6 @@ if st.session_state.logged_in:
                     run_query("UPDATE users SET email=?, password=? WHERE email=?", (new_email, new_hash, st.session_state.user_email))
                     st.session_state.user_email = new_email; st.success("Updated!"); st.rerun()
 
-        # ---------------- WHOLESALER & RETAIL SHOP ----------------
         else:
             my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved, state FROM users WHERE email=?", (st.session_state.user_email,))[0]
             db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved, shop_state = my_data

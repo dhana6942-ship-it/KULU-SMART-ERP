@@ -121,14 +121,18 @@ st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
 st.markdown("""
     <style>
-    /* 🔴 HIDE ALL STREAMLIT BRANDING, MENUS & MANAGE APP BUTTONS 🔴 */
-    #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    .stDeployButton {display: none !important;}
-    [data-testid="stToolbar"] {display: none !important;}
-    [data-testid="stDecoration"] {display: none !important;}
-    [data-testid="manage-app-button"] {display: none !important;}
+    /* 🔴 AGGRESSIVELY HIDE ALL STREAMLIT BRANDING, MENUS & MANAGE APP BUTTONS 🔴 */
+    #MainMenu {visibility: hidden !important; display: none !important;}
+    header {visibility: hidden !important; display: none !important;}
+    footer {visibility: hidden !important; display: none !important;}
+    .stDeployButton {display: none !important; visibility: hidden !important;}
+    [data-testid="stToolbar"] {display: none !important; visibility: hidden !important;}
+    [data-testid="stDecoration"] {display: none !important; visibility: hidden !important;}
+    [data-testid="manage-app-button"] {display: none !important; visibility: hidden !important;}
+    .viewerBadge_container {display: none !important; visibility: hidden !important;}
+    .viewerBadge_link {display: none !important; visibility: hidden !important;}
+    div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
+    div[class*="manage-app"] {display: none !important; visibility: hidden !important;}
     .st-emotion-cache-16txtl3 {padding-top: 0rem;}
     
     /* 🌟 NEW PREMIUM BEAUTIFUL DESIGN 🌟 */
@@ -166,7 +170,19 @@ st.markdown("""
     .card-title { font-size: 28px; font-weight: 800; color: #1a1a1a; margin-bottom: 15px; text-transform: uppercase;}
     .card-text { font-size: 16px; color: #555; line-height: 1.7; font-weight: 500; margin-bottom: 25px; }
     
-    .register-section { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 50px; border-radius: 25px; text-align: center; margin-top: 30px; box-shadow: 0 15px 30px rgba(0,0,0,0.08); border: 1px solid #e0e0e0; }
+    /* 🔴 3D HOVER FOR REGISTRATION SECTION 🔴 */
+    .register-section { 
+        background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%); 
+        padding: 60px 40px; border-radius: 25px; text-align: center; 
+        margin-top: 40px; box-shadow: 0 15px 35px rgba(0,0,0,0.08); 
+        border: 1px solid rgba(0,0,0,0.05); 
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    }
+    .register-section:hover {
+        transform: translateY(-15px) scale(1.02); 
+        box-shadow: 0 30px 50px rgba(0,0,0,0.15);
+    }
+    
     .footer { text-align: center; margin-top: 80px; padding-top: 25px; border-top: 1px solid #eaeaea; color: #999; font-size: 15px; font-weight: 600; letter-spacing: 1px; padding-bottom: 20px;}
     </style>
 """, unsafe_allow_html=True)

@@ -105,10 +105,15 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
+# 🔴 ENHANCED BILL GENERATOR (SHOWS EXACT GST AMOUNT IN RUPEES) 🔴
 def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str, shop_upi=""):
+    base_amt = rate * qty
+    gst_amt = (base_amt * gst) / 100
+    
     qr_html = ""
     if shop_upi:
-        upi_url = f"upi://pay?pa={shop_upi}&pn={shop_name}&am={total_price:.2f}&cu=INR"
+        safe_shop_name = urllib.parse.quote(shop_name)
+        upi_url = f"upi://pay?pa={shop_upi}&pn={safe_shop_name}&am={total_price:.2f}&cu=INR"
         encoded_upi = urllib.parse.quote(upi_url)
         qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={encoded_upi}"
         qr_html = f"""
@@ -137,7 +142,11 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
             <div class="center" style="font-size: 11px;">Date: {date_str}</div>
             <div class="line"></div>
             <div><span class="bold">Item:</span> {item_name}</div>
-            <table><tr><td>Qty: {qty}</td><td class="right">Rate: {rate}</td></tr><tr><td>GST: {gst}%</td><td class="right"></td></tr></table>
+            <table>
+                <tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>
+                <tr><td>Base Amount:</td><td class="right">₹ {base_amt:.2f}</td></tr>
+                <tr><td>GST ({gst}%):</td><td class="right">(+) ₹ {gst_amt:.2f}</td></tr>
+            </table>
             <div class="line"></div>
             <div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>
             {qr_html}
@@ -208,7 +217,7 @@ if st.session_state.logged_in:
                 
             with tab_act:
                 st.subheader("✅ Active Clients & Management")
-                st.write("Ehiya thi tame customers ne manual email mokali shako chho athva delete kari shako chho.")
+                st.write("ଏଠାରେ ଆପଣ ଗ୍ରାହକଙ୍କୁ ମାନୁଆଲ୍ ଇମେଲ୍ ପଠାଇପାରିବେ କିମ୍ବା ତାଙ୍କ ଆକାଉଣ୍ଟ କୁ ଡିଲିଟ୍ କରିପାରିବେ।")
                 active = run_query("SELECT email, name, role, package_type, expiry_date, license_key, owner_name, paid_amount FROM users WHERE approved=1 AND role != 'SuperAdmin' AND is_deleted=0")
                 if active:
                     df = pd.DataFrame(active, columns=["Email", "Business Name", "Role", "Package", "Expiry", "License Key", "Owner", "Paid"])
@@ -258,7 +267,7 @@ if st.session_state.logged_in:
 
             with tab_rec:
                 st.subheader("♻️ Data Recovery / Permanent Delete")
-                st.write("Ehiya thi delete karela party no data pacho lavi shako chho ya hamesh mate delete kari shako chho.")
+                st.write("ଏଠାରୁ ଆପଣ ଡିଲିଟ୍ ହୋଇଥିବା ପାର୍ଟିର ଡାଟା ଫେରାଇ ଆଣିପାରିବେ କିମ୍ବା ସବୁଦିନ ପାଇଁ ଡିଲିଟ୍ କରିପାରିବେ।")
                 del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1 AND role != 'SuperAdmin'")
                 if del_users:
                     for d_u in del_users:
@@ -415,7 +424,7 @@ if st.session_state.logged_in:
 
             with tab_prof:
                 st.subheader("⚙️ Update Shop Profile & Payment Settings")
-                st.info("Ehiya tamari shop ni UPI ID nakho je bill par QR code bani ne aavse!")
+                st.info("ଏଠାରେ ଆପଣଙ୍କର ଦୋକାନର UPI ID ଦିଅନ୍ତୁ, ଯାହା ବିଲ୍ ରେ ଗ୍ରାହକଙ୍କ ପାଇଁ QR କୋଡ୍ ହୋଇ ବାହାରିବ!")
                 with st.form("shop_profile_form"):
                     c1, c2 = st.columns(2)
                     with c1: new_upi = st.text_input("Your Shop UPI ID (PhonePe/GPay)", value=shop_upi if shop_upi else "")
@@ -618,7 +627,6 @@ else:
                         exp_days = 10 if d['pkg_name']=="Demo" else 30 if d['pkg_name']=="Monthly" else 180 if d['pkg_name']=="6 Months" else 365 if d['pkg_name']=="1 Year" else 36500
                         exp_date = str(date.today() + timedelta(days=exp_days))
                         
-                        # 🔴 PAN_GST_NO FIX 🔴
                         run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, 
                                      aadhar, pan_gst_no, address, state, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) 
                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -653,19 +661,19 @@ else:
                     with st.spinner("Sending OTP to your email... Please wait."):
                         success = send_real_email(f_email, "Password Reset OTP", f"Your OTP is {st.session_state.forgot_otp}")
                     if success: st.session_state.forgot_step = 2; st.rerun()
-                    else: st.error("❌ Email pathavavama samasya aavi! Network check karo.")
-                else: st.error("❌ Aa Email system ma nathi.")
+                    else: st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ କିମ୍ବା ଆପ୍ ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
+                else: st.error("❌ ଏହି Email ଆମ ସିଷ୍ଟମ୍ ରେ ନାହିଁ।")
                     
         elif st.session_state.forgot_step == 2:
-            st.success(f"📧 Real OTP tamara {st.session_state.forgot_email} par mokalyo chhe! (Inbox/Spam check karo)")
+            st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.forgot_email} କୁ ପଠାଯାଇଛି! (Check Inbox/Spam)")
             e_otp = st.text_input("Enter 6-digit OTP")
             if st.button("Verify OTP"):
                 if e_otp == st.session_state.forgot_otp: st.session_state.forgot_step = 3; st.rerun()
-                else: st.error("❌ Khoto OTP!")
+                else: st.error("❌ ଭୁଲ୍ OTP!")
                     
         elif st.session_state.forgot_step == 3:
             new_pass = st.text_input("Enter New Password", type="password")
             if st.button("Update Password") and new_pass:
                 run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                st.success("✅ Password updated! 'Back to Home' par click kari login karo.")
+                st.success("✅ Password updated! Click 'Back to Home' to Login.")
                 st.session_state.forgot_step = 1

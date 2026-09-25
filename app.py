@@ -4,33 +4,23 @@ import pandas as pd
 import random
 
 # ==========================================
-# 1. DATABASE SETUP (Permanent Storage & Updates)
+# 1. DATABASE SETUP
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
     c = conn.cursor()
-    
-    # Create Table with New Fields
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, 
                  payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT)''')
     
-    # Auto-Update older table if columns are missing
     try:
         c.execute("ALTER TABLE users ADD COLUMN aadhar TEXT")
         c.execute("ALTER TABLE users ADD COLUMN pan TEXT")
         c.execute("ALTER TABLE users ADD COLUMN gst TEXT")
         c.execute("ALTER TABLE users ADD COLUMN mobile TEXT")
     except:
-        pass # Columns already exist
+        pass
 
-    # Create Inventory and Transactions tables
-    c.execute('''CREATE TABLE IF NOT EXISTS inventory
-                 (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS transactions
-                 (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER)''')
-    
-    # Default Super Admin
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved) VALUES (?, ?, ?, ?, ?, ?)",
               ('Super Admin', 'admin@kulusutar.in', 'admin123', 'SuperAdmin', 'Paid', 1))
     conn.commit()
@@ -48,150 +38,105 @@ def run_query(query, params=()):
     return data
 
 # ==========================================
-# 2. SESSION STATES FOR OTP & LOGIN
+# 2. PAGE CONFIG & CUSTOM CSS (Unique Look)
 # ==========================================
-st.set_page_config(page_title="Kulu ERP & Billing System", layout="wide")
+st.set_page_config(page_title="Kulu ERP Master", layout="wide", page_icon="🏢")
 
+st.markdown("""
+    <style>
+    .card-admin { background-color: #ffebee; padding: 20px; border-radius: 10px; border-top: 5px solid #f44336; text-align: center; }
+    .card-whole { background-color: #e3f2fd; padding: 20px; border-radius: 10px; border-top: 5px solid #2196f3; text-align: center; }
+    .card-shop { background-color: #e8f5e9; padding: 20px; border-radius: 10px; border-top: 5px solid #4caf50; text-align: center; }
+    .main-title { font-size: 40px; font-weight: bold; text-align: center; color: #333; margin-bottom: 30px; }
+    </style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 3. SESSION STATES
+# ==========================================
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_email" not in st.session_state: st.session_state.user_email = None
 if "user_role" not in st.session_state: st.session_state.user_role = None
+if "user_name" not in st.session_state: st.session_state.user_name = None
 
-# Registration States
-if "reg_step" not in st.session_state: st.session_state.reg_step = 1
-if "reg_otp" not in st.session_state: st.session_state.reg_otp = ""
-if "reg_data" not in st.session_state: st.session_state.reg_data = {}
-
-# Forgot Password States
 if "forgot_step" not in st.session_state: st.session_state.forgot_step = 1
-if "forgot_email" not in st.session_state: st.session_state.forgot_email = ""
-if "forgot_otp" not in st.session_state: st.session_state.forgot_otp = ""
 
-# Sidebar
-if st.session_state.user_email is None:
-    menu = st.sidebar.radio("Navigation Menu", ["Login", "Buy Software (Register)", "Forgot Password"])
+# ==========================================
+# 4. SIDEBAR MENU
+# ==========================================
+if not st.session_state.logged_in:
+    menu = st.sidebar.radio("Navigation", ["Home Ground", "Unified Login", "Register (Buy Software)", "Forgot Password"])
 else:
-    menu = st.sidebar.radio("Navigation Menu", ["Dashboard", "Logout"])
+    menu = st.sidebar.radio("Navigation", ["My Dashboard", "Logout"])
 
 # ==========================================
-# 3. REGISTRATION (Email OTP & Wholesaler Details)
+# 5. HOME GROUND (The Unique Table Layout)
 # ==========================================
-if menu == "Buy Software (Register)":
-    st.title("🛒 Buy Kulu ERP Software")
-    st.info("Register via Email OTP to access your Wholesale & Retail business software.")
-
-    if st.session_state.reg_step == 1:
-        st.subheader("Step 1: Business Details")
-        r_role = st.selectbox("Select Software Version", ["Wholesaler (Manage multiple shops)", "Retail Shop (Manage single shop)"])
-        r_name = st.text_input("Business / Owner Name")
-        r_email = st.text_input("Email Address")
-        r_mobile = st.text_input("Mobile Number")
-        r_pass = st.text_input("Create Password", type="password")
+if menu == "Home Ground" and not st.session_state.logged_in:
+    st.markdown('<div class="main-title">🏢 Kulu Smart ERP & Billing System</div>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown('<div class="card-admin"><h3>👑 Super Admin</h3><p>Manage software clients, approve payments, and track earnings.</p></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown('<div class="card-whole"><h3>🏢 Wholesaler</h3><p>Control 100+ retail shops, track global inventory & balance sheets.</p></div>', unsafe_allow_html=True)
+    with col3:
+        st.markdown('<div class="card-shop"><h3>🏪 Retail Shop</h3><p>Generate smart GST/Non-GST bills and manage daily local stock.</p></div>', unsafe_allow_html=True)
         
-        r_aadhar = ""
-        r_pan = ""
-        r_gst = ""
-        if "Wholesaler" in r_role:
-            st.markdown("**Wholesaler KYC Details:**")
-            col1, col2, col3 = st.columns(3)
-            with col1: r_aadhar = st.text_input("Aadhar Number")
-            with col2: r_pan = st.text_input("PAN Number")
-            with col3: r_gst = st.text_input("GST Number (Optional)")
-            
-        if st.button("Send Email OTP"):
-            if r_name and r_email and r_mobile and r_pass:
-                # Check if email exists
-                check = run_query("SELECT email FROM users WHERE email=?", (r_email,))
-                if check:
-                    st.error("❌ This Email is already registered!")
-                else:
-                    otp = str(random.randint(100000, 999999))
-                    st.session_state.reg_otp = otp
-                    st.session_state.reg_data = {
-                        "name": r_name, "email": r_email, "mobile": r_mobile, "pass": r_pass, 
-                        "role": "Wholesaler" if "Wholesaler" in r_role else "Shop",
-                        "aadhar": r_aadhar, "pan": r_pan, "gst": r_gst
-                    }
-                    st.session_state.reg_step = 2
-                    st.rerun()
-            else:
-                st.warning("⚠️ Please fill all required fields!")
-
-    elif st.session_state.reg_step == 2:
-        st.subheader("Step 2: Email OTP Verification")
-        # Mock Email Sending Alert (For local testing)
-        st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.reg_otp}** ) - Check your inbox!")
-        
-        entered_otp = st.text_input("Enter 6-digit OTP sent to your email")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Verify OTP"):
-                if entered_otp == st.session_state.reg_otp:
-                    d = st.session_state.reg_data
-                    run_query('''INSERT INTO users (name, email, password, role, payment_status, approved, aadhar, pan, gst, mobile) 
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                              (d['name'], d['email'], d['pass'], d['role'], 'Pending', 0, d['aadhar'], d['pan'], d['gst'], d['mobile']))
-                    st.success("✅ Email Verified & Registered Successfully!")
-                    st.session_state.reg_step = 3
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid OTP. Try again.")
-        with col2:
-            if st.button("Cancel & Go Back"):
-                st.session_state.reg_step = 1
-                st.rerun()
-
-    elif st.session_state.reg_step == 3:
-        st.subheader("💳 Step 3: Complete Payment")
-        st.write("Scan the QR code below and pay **₹4,999** for Lifetime Access.")
-        st.image("https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg", width=150)
-        st.info("After payment, Super Admin will verify and activate your account. You can login once approved.")
-        if st.button("Done"):
-            st.session_state.reg_step = 1
-            st.rerun()
+    st.markdown("---")
+    st.info("👈 **To start working, go to 'Unified Login' from the sidebar and enter your unique Email ID.**")
 
 # ==========================================
-# 4. LOGIN PAGE
+# 6. UNIFIED LOGIN (Smart Routing)
 # ==========================================
-elif menu == "Login":
-    st.title("🔐 Login to Kulu ERP")
-    l_email = st.text_input("Email")
+elif menu == "Unified Login":
+    st.title("🔐 Secure Login Portal")
+    st.write("Enter your Unique Email ID. The system will auto-detect your role.")
+    
+    l_email = st.text_input("Email (Unique ID)")
     l_pass = st.text_input("Password", type="password")
     
-    if st.button("Login"):
-        user = run_query("SELECT name, role, approved FROM users WHERE email=? AND password=?", (l_email, l_pass))
-        if user:
-            if user[0][2] == 1: # Approved
-                st.session_state.user_email = l_email
-                st.session_state.user_role = user[0][1]
-                st.rerun()
+    if st.button("🚀 Login"):
+        if l_email and l_pass:
+            user = run_query("SELECT name, role, approved FROM users WHERE email=? AND password=?", (l_email, l_pass))
+            if user:
+                if user[0][2] == 1: # Approved
+                    st.session_state.logged_in = True
+                    st.session_state.user_name = user[0][0]
+                    st.session_state.user_role = user[0][1]
+                    st.session_state.user_email = l_email
+                    st.success(f"Welcome back, {user[0][0]}!")
+                    st.rerun()
+                else:
+                    st.error("❌ Your account is pending Super Admin payment verification.")
             else:
-                st.error("❌ Your account is pending Super Admin payment verification.")
+                st.error("❌ Invalid Email or Password.")
         else:
-            st.error("❌ Invalid Email or Password.")
+            st.warning("Please enter both Email and Password.")
 
 # ==========================================
-# 5. FORGOT PASSWORD FLOW
+# 7. FORGOT PASSWORD (Universal)
 # ==========================================
 elif menu == "Forgot Password":
-    st.title("🔑 Reset Password")
+    st.title("🔑 Reset Password (All Users)")
     
     if st.session_state.forgot_step == 1:
-        st.write("Enter your registered email address to receive an OTP.")
-        f_email = st.text_input("Registered Email")
+        f_email = st.text_input("Enter your Registered Email")
         if st.button("Send Reset OTP"):
             check = run_query("SELECT email FROM users WHERE email=?", (f_email,))
             if check:
-                otp = str(random.randint(100000, 999999))
-                st.session_state.forgot_otp = otp
+                st.session_state.forgot_otp = str(random.randint(100000, 999999))
                 st.session_state.forgot_email = f_email
                 st.session_state.forgot_step = 2
                 st.rerun()
             else:
-                st.error("❌ Email not found in our database.")
+                st.error("❌ Email not found in our system.")
                 
     elif st.session_state.forgot_step == 2:
         st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.forgot_otp}** )")
         e_otp = st.text_input("Enter 6-digit OTP")
-        if st.button("Verify"):
+        if st.button("Verify OTP"):
             if e_otp == st.session_state.forgot_otp:
                 st.session_state.forgot_step = 3
                 st.rerun()
@@ -203,47 +148,76 @@ elif menu == "Forgot Password":
         if st.button("Update Password"):
             if new_pass:
                 run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                st.success("✅ Password updated successfully! Please go to Login.")
+                st.success("✅ Password updated! Go to Login.")
                 st.session_state.forgot_step = 1
             else:
                 st.warning("Password cannot be empty.")
 
 # ==========================================
-# 6. LOGOUT
+# 8. REGISTRATION (Same as before)
 # ==========================================
-elif menu == "Logout":
-    st.session_state.user_email = None
-    st.session_state.user_role = None
-    st.rerun()
+elif menu == "Register (Buy Software)":
+    st.title("🛒 Buy Kulu ERP Software")
+    # Form layout for registration...
+    with st.form("reg_form"):
+        r_role = st.selectbox("Role", ["Wholesaler", "Shop"])
+        r_name = st.text_input("Business Name")
+        r_email = st.text_input("Email")
+        r_pass = st.text_input("Password", type="password")
+        r_mobile = st.text_input("Mobile")
+        submit = st.form_submit_button("Register & Pay")
+        
+        if submit:
+            if r_name and r_email and r_pass:
+                try:
+                    run_query("INSERT INTO users (name, email, password, role, payment_status, approved, mobile) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                              (r_name, r_email, r_pass, r_role, 'Pending', 0, r_mobile))
+                    st.success("Registration Saved! Please contact Super Admin with ₹4999 payment to activate.")
+                except:
+                    st.error("Email already exists.")
 
 # ==========================================
-# 7. MAIN DASHBOARDS
+# 9. DYNAMIC ROLE-BASED DASHBOARDS
 # ==========================================
-elif menu == "Dashboard":
+elif menu == "My Dashboard" and st.session_state.logged_in:
+    
+    st.markdown(f"### 👋 Welcome, {st.session_state.user_name} ({st.session_state.user_role})")
+    st.markdown("---")
+    
+    # ---------------- SUPER ADMIN ----------------
     if st.session_state.user_role == "SuperAdmin":
         st.title("👑 Super Admin Control Panel")
-        st.write("Welcome, Master Admin. Manage clients and earnings here.")
-        
-        st.subheader("Pending Software Approvals")
-        pending_users = run_query("SELECT id, name, email, role, mobile, aadhar, pan, gst FROM users WHERE approved=0 AND role != 'SuperAdmin'")
+        pending_users = run_query("SELECT name, email, role, mobile FROM users WHERE approved=0 AND role != 'SuperAdmin'")
         if pending_users:
-            df_pending = pd.DataFrame(pending_users, columns=["ID", "Name", "Email", "Role", "Mobile", "Aadhar", "PAN", "GST"])
-            st.dataframe(df_pending)
-            
-            app_email = st.selectbox("Select User to Verify Payment & Approve", df_pending['Email'])
+            st.dataframe(pd.DataFrame(pending_users, columns=["Name", "Email", "Role", "Mobile"]))
+            app_email = st.selectbox("Select User to Verify Payment", [u[1] for u in pending_users])
             if st.button("✅ Verify Payment & Activate Account"):
                 run_query("UPDATE users SET approved=1, payment_status='Paid' WHERE email=?", (app_email,))
-                st.success(f"User {app_email} activated successfully!")
+                st.success(f"{app_email} is now Active!")
                 st.rerun()
         else:
             st.info("No pending approvals.")
 
+    # ---------------- WHOLESALER ----------------
     elif st.session_state.user_role == "Wholesaler":
-        st.title("🏢 Wholesaler Dashboard")
-        st.write("Welcome! Here you can manage your 100 retail shops, track overall stock, and check balances.")
-        st.info("Development Phase: The multi-shop inventory and balance sheet modules will be added here next.")
+        st.title("🏢 Wholesaler Master Terminal")
+        tab1, tab2 = st.tabs(["Global Network Stock", "Dues & Balance Sheet"])
+        with tab1: st.info("Multi-shop inventory will sync here.")
+        with tab2: st.info("Pending shop balances will display here.")
 
+    # ---------------- RETAIL SHOP ----------------
     elif st.session_state.user_role == "Shop":
-        st.title("🏪 Retail Shop Billing System")
-        st.write("Welcome! This is your daily sales, billing, and inventory terminal.")
-        st.info("Development Phase: Add product to stock, GST billing, and daily profit report modules will be added here next.")
+        st.title("🏪 Retail Shop Billing & Inventory")
+        tab1, tab2 = st.tabs(["New GST/Non-GST Bill", "My Inventory"])
+        with tab1: st.info("Auto GST calculation & PDF generation module.")
+        with tab2: st.info("Add products and update stock module.")
+
+# ==========================================
+# 10. LOGOUT
+# ==========================================
+elif menu == "Logout":
+    st.session_state.logged_in = False
+    st.session_state.user_email = None
+    st.session_state.user_role = None
+    st.session_state.user_name = None
+    st.rerun()

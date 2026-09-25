@@ -101,10 +101,10 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, tot
         upi_url = f"upi://pay?pa={shop_upi}&pn={safe_shop_name}&am={total_price:.2f}&cu=INR"
         qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={urllib.parse.quote(upi_url)}"
         qr_html = f"""<div class="center" style="margin-top: 15px;"><img src="{qr_img_src}" alt="Scan to Pay" width="90" height="90" style="border: 2px solid #000; padding: 2px;"><div style="font-size: 11px; font-weight: bold; margin-top: 5px;">Scan to Pay ₹ {total_price:.2f}</div></div>"""
-    cust_info = f"""<div class="line"></div><div style="font-size: 11px; margin-bottom: 5px;"><b>Customer:</b> {cust_name}<br><b>Mob:</b> {cust_mob}</div>""" if cust_name or cust_mob else ""
+    cust_info = f"""<div class="line"></div><div style="font-size: 11px; margin-bottom: 5px;"><b>Customer:</b> {cust_name.upper()}<br><b>Mob:</b> {cust_mob}</div>""" if cust_name or cust_mob else ""
     inv_info = f"<div class='center' style='font-size: 10px; margin-bottom: 5px;'>Inv No: {inv_no}</div>" if inv_no else ""
     gst_html = f"<tr><td>Base Amount:</td><td class='right'>₹ {base_amt:.2f}</td></tr><tr><td>GST ({gst_pct}%):</td><td class='right'>(+) ₹ {gst_amt:.2f}</td></tr>" if gst_pct > 0 else ""
-    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
+    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name.upper()}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name.upper()}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
 
 # 🔴 PURCHASE REPORT HTML 🔴
 def generate_purchase_report_html(shop_name, date_str, purchases):
@@ -113,13 +113,13 @@ def generate_purchase_report_html(shop_name, date_str, purchases):
     for p in purchases:
         base = p[1] * p[2]
         tot_base += base; tot_gst += p[4]; tot_net += p[5]
-        rows += f"<tr><td>{p[0]}</td><td>{p[1]}</td><td>₹{p[2]:.2f}</td><td>{p[3]}%</td><td>₹{p[4]:.2f}</td><td>₹{p[5]:.2f}</td></tr>"
-    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 80mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; }} .receipt-box {{ width: 80mm; min-width: 300px; max-width: 100%; margin: 0 auto; padding: 15px; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 10px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 11px; margin: 10px 0; border-collapse: collapse; text-align: left; }} th, td {{ padding: 4px; border-bottom: 1px dotted #ccc; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 20px; display: block; width: 100%; }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 18px;">{shop_name}</div><div class="center" style="font-size: 12px; margin-bottom: 5px;">Daily Purchase Entry Report</div><div class="center" style="font-size: 12px;">Date: {date_str}</div><div class="line"></div><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Tax</th><th>Total</th></tr>{rows}</table><div class="line"></div><div class="right bold">Total Base Amount: ₹ {tot_base:.2f}</div><div class="right bold">Total GST Paid: (+) ₹ {tot_gst:.2f}</div><div class="right bold" style="font-size: 16px; margin-top: 5px;">Net Purchase Value: ₹ {tot_net:.2f}</div><div class="line"></div><div class="center" style="font-size: 11px; margin-top: 5px;">* Verify this report with Seller's Invoice *</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Purchase Report</button></div></body></html>"""
+        rows += f"<tr><td>{str(p[0]).upper()}</td><td>{p[1]}</td><td>₹{p[2]:.2f}</td><td>{p[3]}%</td><td>₹{p[4]:.2f}</td><td>₹{p[5]:.2f}</td></tr>"
+    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 80mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; }} .receipt-box {{ width: 80mm; min-width: 300px; max-width: 100%; margin: 0 auto; padding: 15px; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 10px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 11px; margin: 10px 0; border-collapse: collapse; text-align: left; }} th, td {{ padding: 4px; border-bottom: 1px dotted #ccc; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 20px; display: block; width: 100%; }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 18px;">{shop_name.upper()}</div><div class="center" style="font-size: 12px; margin-bottom: 5px;">Daily Purchase Entry Report</div><div class="center" style="font-size: 12px;">Date: {date_str}</div><div class="line"></div><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Tax</th><th>Total</th></tr>{rows}</table><div class="line"></div><div class="right bold">Total Base Amount: ₹ {tot_base:.2f}</div><div class="right bold">Total GST Paid: (+) ₹ {tot_gst:.2f}</div><div class="right bold" style="font-size: 16px; margin-top: 5px;">Net Purchase Value: ₹ {tot_net:.2f}</div><div class="line"></div><div class="center" style="font-size: 11px; margin-top: 5px;">* Verify this report with Seller's Invoice *</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Purchase Report</button></div></body></html>"""
 
 def generate_gst_report_html(df_gst, tot_gst, shop_name):
     rows = ""
-    for _, r in df_gst.iterrows(): rows += f"<tr><td>{r['Invoice']}</td><td>{r['Date']}</td><td>{r['Customer']}</td><td>₹{r['Base Value (₹)']:.2f}</td><td>{r['GST %']}%</td><td>₹{r['GST Amount (₹)']:.2f}</td><td>₹{r['Total Value (₹)']:.2f}</td></tr>"
-    return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
+    for _, r in df_gst.iterrows(): rows += f"<tr><td>{r['Invoice']}</td><td>{r['Date']}</td><td>{str(r['Customer']).upper()}</td><td>₹{r['Base Value (₹)']:.2f}</td><td>{r['GST %']}%</td><td>₹{r['GST Amount (₹)']:.2f}</td><td>₹{r['Total Value (₹)']:.2f}</td></tr>"
+    return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name.upper()}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
 
 # ==========================================
 # 2. PAGE CONFIG & PREMIUM INVISIBLE UI CSS
@@ -128,7 +128,6 @@ st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
 st.markdown("""
     <style>
-    /* 🔴 SUPER AGGRESSIVE HIDE FOR ALL STREAMLIT CLOUD BRANDING & MANAGE APP BUTTONS 🔴 */
     #MainMenu {visibility: hidden !important; display: none !important;}
     header {visibility: hidden !important; display: none !important;}
     footer {visibility: hidden !important; display: none !important;}
@@ -139,7 +138,6 @@ st.markdown("""
     [data-testid="stDecoration"] {display: none !important; visibility: hidden !important;}
     .st-emotion-cache-16txtl3 {padding-top: 0rem;}
     
-    /* 🌟 NEW PREMIUM 3D BUTTONS 🌟 */
     .stButton > button {
         transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
         box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
@@ -299,7 +297,7 @@ if st.session_state.logged_in:
                 st.stop()
             
             c1, c2 = st.columns([3, 1])
-            with c1: st.markdown(f'<h2>📊 Gateway of Kulu ERP - {shop_name} ({st.session_state.user_role})</h2>', unsafe_allow_html=True)
+            with c1: st.markdown(f'<h2>📊 Gateway of Kulu ERP - {shop_name.upper()} ({st.session_state.user_role})</h2>', unsafe_allow_html=True)
             with c2: 
                 if shop_photo: st.image(shop_photo, width=80)
                 st.info(f"Valid Till: {exp_date}")
@@ -329,8 +327,8 @@ if st.session_state.logged_in:
                 
                 if inv_data:
                     for row in inv_data:
-                        i_name = row[0]; curr_stock = row[1]; buy_price = row[2]; sell_price = row[3]
-                        stock_in = purchases_dict.get(i_name, 0); stock_out = sales_dict.get(i_name, 0)
+                        i_name = str(row[0]).upper(); curr_stock = row[1]; buy_price = row[2]; sell_price = row[3]
+                        stock_in = purchases_dict.get(row[0], 0); stock_out = sales_dict.get(row[0], 0)
                         val = curr_stock * buy_price; out_val = stock_out * sell_price
                         tot_stock_qty += curr_stock; tot_stock_val += val; tot_out_qty += stock_out; tot_out_val += out_val
                         stock_list.append([i_name, stock_in, stock_out, curr_stock, buy_price, val])
@@ -348,11 +346,13 @@ if st.session_state.logged_in:
                 st.subheader("📥 Add Inventory (Purchase Entry)")
                 i_bcode = st.text_input("||||| Scan Barcode Here (Use Machine) 👇", key="p_bcode")
                 existing_item = run_query("SELECT item_name, purchase_price, selling_price FROM inventory WHERE barcode=? AND shop_email=?", (i_bcode, st.session_state.user_email)) if i_bcode else []
-                def_name = existing_item[0][0] if existing_item else ""; def_buy = float(existing_item[0][1]) if existing_item else 0.0; def_sell = float(existing_item[0][2]) if existing_item else 0.0
+                def_name = str(existing_item[0][0]).upper() if existing_item else ""; def_buy = float(existing_item[0][1]) if existing_item else 0.0; def_sell = float(existing_item[0][2]) if existing_item else 0.0
                 if existing_item: st.success(f"Item found: {def_name}. Enter quantity to purchase!")
                 
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-                with c1: i_name = st.text_input("Product Name", value=def_name, key="p_name")
+                with c1: 
+                    raw_i_name = st.text_input("Product Name", value=def_name, key="p_name")
+                    i_name = str(raw_i_name).strip().upper()
                 with c2: i_qty = st.number_input("Qty", min_value=1, value=1, key="p_qty")
                 with c3: 
                     gst_options = {"No GST (0%)": 0, "5% GST": 5, "12% GST": 12, "18% GST": 18, "28% GST": 28}
@@ -388,19 +388,20 @@ if st.session_state.logged_in:
                 else:
                     with st.expander("👤 Customer Details", expanded=False):
                         c1, c2 = st.columns(2)
-                        with c1: cust_name = st.text_input("Customer Name")
+                        with c1: raw_c_name = st.text_input("Customer Name"); cust_name = str(raw_c_name).strip().upper()
                         with c2: cust_mob = st.text_input("Mobile Number")
                         
                     scan_code = st.text_input("🔍 SCAN BARCODE HERE (Use Machine)...", key="s_scan")
                     stock_items_pos = run_query("SELECT id, item_name, selling_price, stock, purchase_price, gst_rate, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     if stock_items_pos:
-                        item_dict_pos = {f"{item[1]} - ₹{item[2]} (Stock: {item[3]})": item for item in stock_items_pos}
+                        item_dict_pos = {f"{str(item[1]).upper()} - ₹{item[2]} (Stock: {item[3]})": item for item in stock_items_pos}
                         default_index_pos = 0
                         if scan_code:
                             for idx, item in enumerate(stock_items_pos):
-                                if str(item[6]) == str(scan_code): default_index_pos = idx; st.success(f"Barcode Matched: {item[1]}"); break
+                                if str(item[6]) == str(scan_code): default_index_pos = idx; st.success(f"Barcode Matched: {str(item[1]).upper()}"); break
                         sel_item_pos = st.selectbox("Select Product", list(item_dict_pos.keys()), index=default_index_pos)
-                        i_id, i_name, default_sprice, i_stock, i_pprice, def_gst, _ = item_dict_pos[sel_item_pos]
+                        i_id, i_name_raw, default_sprice, i_stock, i_pprice, def_gst, _ = item_dict_pos[sel_item_pos]
+                        i_name = str(i_name_raw).upper()
                         
                         col1, col2, col3 = st.columns(3)
                         with col1: s_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1)
@@ -438,7 +439,7 @@ if st.session_state.logged_in:
                             if st.button("🖨️ Reprint Selected Bill"):
                                 bill = [h for h in history_clean if h[0] == sel_inv][0]
                                 base_val = bill[5] * bill[4]
-                                st.session_state.reprint_receipt = generate_receipt_html(shop_name, bill[3], bill[4], bill[5] or 0.0, bill[6] or 0.0, bill[8] or 0.0, bill[7], str(bill[1]), shop_upi, bill[2], bill[9], bill[0], base_val); st.rerun()
+                                st.session_state.reprint_receipt = generate_receipt_html(shop_name, str(bill[3]).upper(), bill[4], bill[5] or 0.0, bill[6] or 0.0, bill[8] or 0.0, bill[7], str(bill[1]), shop_upi, str(bill[2]).upper(), bill[9], bill[0], base_val); st.rerun()
                 if "reprint_receipt" in st.session_state:
                     st.markdown("---"); st.success("✅ Bill Loaded for Reprint!"); components.html(st.session_state.reprint_receipt, height=600)
                     if st.button("❌ Close Reprint View"): del st.session_state.reprint_receipt; st.rerun()
@@ -448,6 +449,7 @@ if st.session_state.logged_in:
                 gst_data = run_query("SELECT invoice_no, date, customer_name, total_price - gst_amt, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND trans_type='Sale' AND is_gst=1", (st.session_state.user_email,))
                 if gst_data:
                     df_gst = pd.DataFrame(gst_data, columns=["Invoice", "Date", "Customer", "Base Value (₹)", "GST %", "GST Amount (₹)", "Total Value (₹)"])
+                    df_gst["Customer"] = df_gst["Customer"].str.upper()
                     st.dataframe(df_gst, use_container_width=True)
                     tot_gst = df_gst["GST Amount (₹)"].sum()
                     st.metric("Total GST Collected (Payable)", f"₹ {tot_gst:.2f}")
@@ -458,7 +460,7 @@ if st.session_state.logged_in:
             if st.session_state.user_role == "Wholesaler":
                 with tab_net:
                     st.subheader("🏪 Live Retailer Stock Tracking")
-                    r_stocks = run_query("SELECT u.name, u.email, i.item_name, i.stock, i.selling_price FROM inventory i JOIN users u ON i.shop_email = u.email WHERE u.role = 'Shop' AND i.stock > 0")
+                    r_stocks = run_query("SELECT UPPER(u.name), u.email, UPPER(i.item_name), i.stock, i.selling_price FROM inventory i JOIN users u ON i.shop_email = u.email WHERE u.role = 'Shop' AND i.stock > 0")
                     if r_stocks: st.dataframe(pd.DataFrame(r_stocks, columns=["Retail Shop", "Email", "Product", "Stock", "Price (₹)"]), use_container_width=True)
                     else: st.info("No stock data.")
 
@@ -468,16 +470,16 @@ if st.session_state.logged_in:
                 if up_img and st.button("💾 Save Profile Photo"): run_query("UPDATE users SET shop_photo=? WHERE email=?", (up_img.read(), st.session_state.user_email)); st.success("Photo updated!"); st.rerun()
                 with st.form("shop_profile_form"):
                     c1, c2 = st.columns(2)
-                    with c1: new_upi = st.text_input("Shop UPI ID", value=shop_upi if shop_upi else "")
-                    with c2: new_gst = st.text_input("Shop GST No.", value=shop_gst if shop_gst else "")
+                    with c1: raw_upi = st.text_input("Shop UPI ID", value=shop_upi if shop_upi else ""); new_upi = str(raw_upi).strip()
+                    with c2: raw_gst = st.text_input("Shop GST No.", value=shop_gst if shop_gst else ""); new_gst = str(raw_gst).strip().upper()
                     if st.form_submit_button("💾 Save Settings"): run_query("UPDATE users SET upi_id=?, gst=? WHERE email=?", (new_upi, new_gst, st.session_state.user_email)); st.success("✅ Profile Updated!"); st.rerun()
 
 else:
     if st.session_state.current_page == "Home Ground":
         settings = run_query("SELECT notice_text, home_banner FROM admin_settings WHERE id=1")[0]
-        st.markdown(f"""<div class="notice-board"><marquee behavior="scroll" direction="left" scrollamount="8">📢 {settings[0] if settings[0] else "Welcome to Kulu Smart ERP!"}</marquee></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="notice-board"><marquee behavior="scroll" direction="left" scrollamount="8">📢 {str(settings[0]).upper() if settings[0] else "WELCOME TO KULU SMART ERP!"}</marquee></div>""", unsafe_allow_html=True)
         if settings[1]: st.image(settings[1], use_container_width=True)
-        else: st.markdown("""<div class="hero-container"><div class="hero-title">🚀 Kulu Smart ERP & POS</div><div class="hero-subtitle">Next-Gen Cloud Billing, Barcode & Inventory</div></div>""", unsafe_allow_html=True)
+        else: st.markdown("""<div class="hero-container"><div class="hero-title">🚀 KULU SMART ERP & POS</div><div class="hero-subtitle">NEXT-GEN CLOUD BILLING, BARCODE & INVENTORY</div></div>""", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -490,7 +492,7 @@ else:
             st.markdown("""<div class="feature-card border-shop"><div class="card-icon">🛒</div><div class="card-title">Retail POS</div><div class="card-text">Lightning fast barcode billing & smart inventory tools.</div></div>""", unsafe_allow_html=True)
             if st.button("Shop POS Login", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Shop"; st.rerun()
             
-        st.markdown("""<div class="register-section"><h2 style='color: #1a1a1a; font-weight: 800; margin-bottom: 20px;'>Ready to Transform Your Business?</h2><p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of businesses using Kulu Smart ERP today.</p>""", unsafe_allow_html=True)
+        st.markdown("""<div class="register-section"><h2 style='color: #1a1a1a; font-weight: 800; margin-bottom: 20px;'>READY TO TRANSFORM YOUR BUSINESS?</h2><p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of businesses using Kulu Smart ERP today.</p>""", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([1, 2, 1])
         with c2:
             cc1, cc2 = st.columns(2)
@@ -529,8 +531,8 @@ else:
         
         with st.form("reg_form"):
             r_role = st.selectbox("Register As", ["Shop", "Wholesaler"])
-            r_name = st.text_input("Business Name")
-            r_owner = st.text_input("Owner Name")
+            raw_r_name = st.text_input("Business Name"); r_name = str(raw_r_name).strip().upper()
+            raw_r_owner = st.text_input("Owner Name"); r_owner = str(raw_r_owner).strip().upper()
             r_mob = st.text_input("Mobile Number")
             r_email = st.text_input("Email ID")
             r_pass = st.text_input("Password", type="password")
@@ -538,10 +540,10 @@ else:
             c1, c2 = st.columns(2)
             with c1:
                 r_aadhar = st.text_input("Aadhar Number")
-                r_pan = st.text_input("PAN / GST Number")
+                raw_r_pan = st.text_input("PAN / GST Number"); r_pan = str(raw_r_pan).strip().upper()
             with c2:
                 r_state = st.selectbox("State", INDIAN_STATES)
-                r_addr = st.text_area("Full Business Address")
+                raw_r_addr = st.text_area("Full Business Address"); r_addr = str(raw_r_addr).strip().upper()
                 
             p_sel = st.radio("Select Package", list(packages.keys()))
             if st.form_submit_button("Next ➡️"):

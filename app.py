@@ -204,11 +204,11 @@ if st.session_state.logged_in:
         # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             st.title("👑 Super Admin Control Panel")
-            tab_act, tab_set, tab_rec, tab_prof = st.tabs(["✅ Active Clients & Manual Mail", "⚙️ Pricing & Notice", "♻️ Data Recovery", "🔐 Admin Profile"])
+            tab_act, tab_set, tab_rec, tab_prof = st.tabs(["✅ Active Clients & Manage", "⚙️ Pricing & Notice", "♻️ Data Recovery / Delete", "🔐 Admin Profile"])
                 
             with tab_act:
-                st.subheader("✅ Active Clients & Manual License Backup")
-                st.write("ଗ୍ରାହକଙ୍କୁ ଅଟୋମେଟିକ୍ License ପଳାଇଥାଏ। ଯଦି ନେଟୱର୍କ ପାଇଁ ଫେଲ୍ ହୁଏ, ତେବେ ଏଠାରୁ 'Manual Resend' କରନ୍ତୁ କିମ୍ବା Key କପି କରନ୍ତୁ।")
+                st.subheader("✅ Active Clients & Management")
+                st.write("ଏଠାରେ ଆପଣ ଗ୍ରାହକଙ୍କୁ ମାନୁଆଲ୍ ଇମେଲ୍ ପଠାଇପାରିବେ କିମ୍ବା ତାଙ୍କ ଆକାଉଣ୍ଟ କୁ ଡିଲିଟ୍ କରିପାରିବେ।")
                 active = run_query("SELECT email, name, role, package_type, expiry_date, license_key, owner_name, paid_amount FROM users WHERE approved=1 AND role != 'SuperAdmin' AND is_deleted=0")
                 if active:
                     df = pd.DataFrame(active, columns=["Email", "Business Name", "Role", "Package", "Expiry", "License Key", "Owner", "Paid"])
@@ -227,10 +227,10 @@ if st.session_state.logged_in:
                             if res: st.success("✅ Email Sent Successfully!")
                             else: st.error("❌ Failed to send email. You can copy the License Key from the table above and send via WhatsApp.")
                     with c2:
-                        sel_del = st.selectbox("Select Email to Suspend", [a[0] for a in active])
-                        if st.button("🗑️ Suspend User"):
+                        sel_del = st.selectbox("Select Email to Delete/Suspend", [a[0] for a in active])
+                        if st.button("🗑️ Delete User (Move to Recycle Bin)"):
                             run_query("UPDATE users SET is_deleted=1 WHERE email=?", (sel_del,))
-                            st.success("User Suspended!"); st.rerun()
+                            st.success("✅ User moved to Data Recovery (Recycle Bin)!"); st.rerun()
                 else: st.write("No active clients.")
                 
             with tab_set:
@@ -256,16 +256,27 @@ if st.session_state.logged_in:
                                   (n_upi, n_demo, n_mon, n_six, n_yr, n_life, n_gst, n_notice))
                         st.success("✅ Notice and Prices Updated Successfully!"); st.rerun()
 
+            # 🔴 NEW PERMANENT DELETE OPTION IN RECYCLE BIN 🔴
             with tab_rec:
-                st.subheader("♻️ Data Recovery / Recycle Bin")
+                st.subheader("♻️ Data Recovery / Permanent Delete")
+                st.write("ଏଠାରୁ ଆପଣ ଡିଲିଟ୍ ହୋଇଥିବା ପାର୍ଟିର ଡାଟା ଫେରାଇ ଆଣିପାରିବେ କିମ୍ବା ସବୁଦିନ ପାଇଁ ଡିଲିଟ୍ କରିପାରିବେ।")
                 del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1 AND role != 'SuperAdmin'")
                 if del_users:
                     for d_u in del_users:
-                        col1, col2 = st.columns([3, 1])
-                        col1.error(f"🗑️ Name: {d_u[1]} | Role: {d_u[2]} | Email: {d_u[0]}")
+                        col1, col2, col3 = st.columns([2, 1, 1])
+                        col1.error(f"🗑️ {d_u[1]} ({d_u[2]}) | Email: {d_u[0]}")
+                        
                         if col2.button(f"♻️ Restore", key=f"res_{d_u[0]}"):
                             run_query("UPDATE users SET is_deleted=0 WHERE email=?", (d_u[0],))
                             st.success(f"✅ Restored {d_u[1]}!"); st.rerun()
+                            
+                        if col3.button(f"❌ Permanent Delete", key=f"pdel_{d_u[0]}"):
+                            # Hard delete from Database
+                            run_query("DELETE FROM users WHERE email=?", (d_u[0],))
+                            # Optional: delete their inventory and transactions too
+                            run_query("DELETE FROM inventory WHERE shop_email=?", (d_u[0],))
+                            run_query("DELETE FROM transactions WHERE shop_email=?", (d_u[0],))
+                            st.success(f"✅ Permanently Deleted {d_u[1]}!"); st.rerun()
                 else: st.info("No deleted accounts found.")
 
             with tab_prof:
@@ -295,8 +306,8 @@ if st.session_state.logged_in:
 
         # ---------------- WHOLESALER & RETAIL SHOP (LICENSE CHECK FIRST) ----------------
         else:
-            my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst FROM users WHERE email=?", (st.session_state.user_email,))[0]
-            db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst = my_data
+            my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved = my_data
                 
             if str(date.today()) > str(exp_date):
                 st.error("❌ Your Software License has expired.")
@@ -503,7 +514,6 @@ else:
         if st.button(f"🔑 Forgot Password ({st.session_state.login_role})", use_container_width=False):
             st.session_state.current_page = "Forgot Password"; st.rerun()
 
-    # 🔴 100% AUTOMATIC REGISTRATION, PAYMENT & BILLING 🔴
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): 
             st.session_state.current_page = "Home Ground"
@@ -607,7 +617,6 @@ else:
                             my_bar.progress(int((percent_complete + 1) * 3.33), text=progress_text)
                         my_bar.empty()
                         
-                        # 🔴 AUTO APPROVE AND SAVE TO DB 🔴
                         new_key = generate_license()
                         exp_days = 10 if d['pkg_name']=="Demo" else 30 if d['pkg_name']=="Monthly" else 180 if d['pkg_name']=="6 Months" else 365 if d['pkg_name']=="1 Year" else 36500
                         exp_date = str(date.today() + timedelta(days=exp_days))
@@ -618,17 +627,14 @@ else:
                                   (d['name'], d['owner'], d['email'], d['pass'], d['role'], 'Paid', 1, 
                                    d['aadhar'], d['pan_gst'], d['address'], d['state'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0))
                         
-                        # 🔴 AUTO EMAIL GENERATION 🔴
                         subject = f"Welcome to Kulu ERP - Your {d['pkg_name']} License & Invoice"
                         body = f"Hello {d['owner']},\n\nYour Payment (UTR: {r_utr}) has been Auto-Verified successfully!\n\n🔑 License Key: {new_key}\n📅 Expiry Date: {exp_date}\n\n--- INVOICE ---\nBusiness Name: {d['name']}\nAmount Paid: ₹{d['total_amt']}\n\nPlease login to activate your software.\n\nThanks,\nKulu Smart ERP"
                         
                         with st.spinner("Generating License and Sending Email..."):
                             success = send_real_email(d['email'], subject, body)
                             
-                        if success:
-                            st.success("✅ Payment Verified Automatically! Your License Key has been sent to your Email.")
-                        else:
-                            st.warning("⚠️ Payment Verified, BUT Email failed to send due to a Network Issue. Please contact Super Admin to get your License Key manually.")
+                        if success: st.success("✅ Payment Verified Automatically! Your License Key has been sent to your Email.")
+                        else: st.warning("⚠️ Payment Verified, BUT Email failed to send due to a Network Issue. Please contact Super Admin to get your License Key manually.")
                             
                         st.balloons()
                         del st.session_state.reg_step

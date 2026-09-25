@@ -105,7 +105,6 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
-# 🔴 ENHANCED BILL GENERATOR (SHOWS EXACT GST AMOUNT IN RUPEES) 🔴
 def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str, shop_upi=""):
     base_amt = rate * qty
     gst_amt = (base_amt * gst) / 100
@@ -155,7 +154,6 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
         </div>
         <div id="print-btn">
             <button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br>
-            <button onclick="window.parent.location.reload()" style="background: transparent; border: none; color: blue; text-decoration: underline; cursor: pointer;">Cancel / New Bill</button>
         </div>
     </body>
     </html>
@@ -217,7 +215,6 @@ if st.session_state.logged_in:
                 
             with tab_act:
                 st.subheader("✅ Active Clients & Management")
-                st.write("ଏଠାରେ ଆପଣ ଗ୍ରାହକଙ୍କୁ ମାନୁଆଲ୍ ଇମେଲ୍ ପଠାଇପାରିବେ କିମ୍ବା ତାଙ୍କ ଆକାଉଣ୍ଟ କୁ ଡିଲିଟ୍ କରିପାରିବେ।")
                 active = run_query("SELECT email, name, role, package_type, expiry_date, license_key, owner_name, paid_amount FROM users WHERE approved=1 AND role != 'SuperAdmin' AND is_deleted=0")
                 if active:
                     df = pd.DataFrame(active, columns=["Email", "Business Name", "Role", "Package", "Expiry", "License Key", "Owner", "Paid"])
@@ -267,7 +264,6 @@ if st.session_state.logged_in:
 
             with tab_rec:
                 st.subheader("♻️ Data Recovery / Permanent Delete")
-                st.write("ଏଠାରୁ ଆପଣ ଡିଲିଟ୍ ହୋଇଥିବା ପାର୍ଟିର ଡାଟା ଫେରାଇ ଆଣିପାରିବେ କିମ୍ବା ସବୁଦିନ ପାଇଁ ଡିଲିଟ୍ କରିପାରିବେ।")
                 del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1 AND role != 'SuperAdmin'")
                 if del_users:
                     for d_u in del_users:
@@ -347,10 +343,14 @@ if st.session_state.logged_in:
                 purch_data = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Purchase'", (st.session_state.user_email, today_str))[0][0]
                 profit_data = run_query("SELECT SUM(profit) FROM transactions WHERE shop_email=? AND date=? AND trans_type='Sale'", (st.session_state.user_email, today_str))[0][0]
                 
+                s_val = float(sales_data) if sales_data else 0.0
+                p_val = float(purch_data) if purch_data else 0.0
+                pr_val = float(profit_data) if profit_data else 0.0
+                
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Total Sales", f"₹ {sales_data if sales_data else 0.0}")
-                c2.metric("Total Purchases", f"₹ {purch_data if purch_data else 0.0}")
-                c3.metric("Net Profit", f"₹ {profit_data if profit_data else 0.0}")
+                c1.metric("Total Sales", f"₹ {s_val:.2f}")
+                c2.metric("Total Purchases", f"₹ {p_val:.2f}")
+                c3.metric("Net Profit", f"₹ {pr_val:.2f}")
 
             with tab_purch:
                 st.subheader("📥 Add Inventory (Purchase)")
@@ -375,45 +375,50 @@ if st.session_state.logged_in:
                     run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (st.session_state.user_email, str(date.today()), i_name, i_qty, i_pprice*i_qty, 0, 0, 'Purchase'))
                     st.success(f"✅ Purchase Saved!")
 
+            # 🔴 ANTI DOUBLE-CLICK BILLING FIX 🔴
             with tab_sales:
                 st.subheader("🧾 Sales POS (Auto QR Bill)")
-                scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="s_scan")
-                stock_items = run_query("SELECT id, item_name, selling_price, stock, purchase_price, gst_rate, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
-                
-                if stock_items:
-                    item_dict = {f"{item[1]} - ₹{item[2]}": item for item in stock_items}
-                    default_index = 0
-                    if scan_code:
-                        for idx, item in enumerate(stock_items):
-                            if str(item[6]) == str(scan_code): default_index = idx; st.success(f"Barcode Matched: {item[1]}"); break
-                    
-                    sel_item = st.selectbox("Select Product", list(item_dict.keys()), index=default_index)
-                    i_id, i_name, default_sprice, i_stock, i_pprice, def_gst, _ = item_dict[sel_item]
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1: s_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1)
-                    with col2: s_price = st.number_input("Rate (₹)", value=float(default_sprice))
-                    with col3: s_gst = st.number_input("GST %", value=float(def_gst))
-                    
-                    is_gst_bill = st.checkbox("Calculate GST", value=True)
-                    s_base = s_price * s_qty
-                    s_final_price = (s_base + (s_base * s_gst / 100)) if is_gst_bill else s_base
-                    profit = s_final_price - (i_pprice * s_qty)
-                    st.write(f"**Total Payable:** ₹ {s_final_price:.2f}")
-
-                    if st.button("🛒 Generate Sale Bill & Print", type="primary"):
-                        if s_qty <= i_stock:
-                            run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (s_qty, i_id))
-                            run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                      (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale'))
-                            st.success(f"✅ Sale Recorded! Total: ₹ {s_final_price:.2f}")
-                            st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()), shop_upi)
-                        else: st.error("Not enough stock!")
                 
                 if "print_receipt" in st.session_state:
-                    st.markdown("---")
-                    st.subheader("🖨️ Bill Preview (With Payment QR)")
+                    st.success("✅ Sale Recorded Successfully! Please print your bill.")
+                    if st.button("➕ Create New Bill", type="primary"):
+                        del st.session_state.print_receipt
+                        st.rerun()
                     components.html(st.session_state.print_receipt, height=600)
+                else:
+                    scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="s_scan")
+                    stock_items = run_query("SELECT id, item_name, selling_price, stock, purchase_price, gst_rate, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
+                    
+                    if stock_items:
+                        item_dict = {f"{item[1]} - ₹{item[2]}": item for item in stock_items}
+                        default_index = 0
+                        if scan_code:
+                            for idx, item in enumerate(stock_items):
+                                if str(item[6]) == str(scan_code): default_index = idx; st.success(f"Barcode Matched: {item[1]}"); break
+                        
+                        sel_item = st.selectbox("Select Product", list(item_dict.keys()), index=default_index)
+                        i_id, i_name, default_sprice, i_stock, i_pprice, def_gst, _ = item_dict[sel_item]
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1: s_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1)
+                        with col2: s_price = st.number_input("Rate (₹)", value=float(default_sprice))
+                        with col3: s_gst = st.number_input("GST %", value=float(def_gst))
+                        
+                        is_gst_bill = st.checkbox("Calculate GST", value=True)
+                        s_base = s_price * s_qty
+                        s_final_price = (s_base + (s_base * s_gst / 100)) if is_gst_bill else s_base
+                        profit = s_final_price - (i_pprice * s_qty)
+                        st.write(f"**Total Payable:** ₹ {s_final_price:.2f}")
+
+                        if st.button("🛒 Generate Sale Bill & Print", type="primary"):
+                            if s_qty <= i_stock:
+                                run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (s_qty, i_id))
+                                run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                          (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale'))
+                                
+                                st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()), shop_upi)
+                                st.rerun() # Forces page reload instantly to prevent double click
+                            else: st.error("Not enough stock!")
 
             if st.session_state.user_role == "Wholesaler":
                 with tab_net:
@@ -424,7 +429,6 @@ if st.session_state.logged_in:
 
             with tab_prof:
                 st.subheader("⚙️ Update Shop Profile & Payment Settings")
-                st.info("ଏଠାରେ ଆପଣଙ୍କର ଦୋକାନର UPI ID ଦିଅନ୍ତୁ, ଯାହା ବିଲ୍ ରେ ଗ୍ରାହକଙ୍କ ପାଇଁ QR କୋଡ୍ ହୋଇ ବାହାରିବ!")
                 with st.form("shop_profile_form"):
                     c1, c2 = st.columns(2)
                     with c1: new_upi = st.text_input("Your Shop UPI ID (PhonePe/GPay)", value=shop_upi if shop_upi else "")
@@ -661,19 +665,19 @@ else:
                     with st.spinner("Sending OTP to your email... Please wait."):
                         success = send_real_email(f_email, "Password Reset OTP", f"Your OTP is {st.session_state.forgot_otp}")
                     if success: st.session_state.forgot_step = 2; st.rerun()
-                    else: st.error("❌ Email ପଠାଇବାରେ ଅସୁବିଧା ହେଲା! ଦୟାକରି ଇଣ୍ଟରନେଟ୍ କିମ୍ବା ଆପ୍ ପାସୱାର୍ଡ ଚେକ୍ କରନ୍ତୁ।")
-                else: st.error("❌ ଏହି Email ଆମ ସିଷ୍ଟମ୍ ରେ ନାହିଁ।")
+                    else: st.error("❌ Email pathavavama samasya aavi! Network check karo.")
+                else: st.error("❌ Aa Email system ma nathi.")
                     
         elif st.session_state.forgot_step == 2:
-            st.success(f"📧 ରିଅଲ୍ OTP ଆପଣଙ୍କ {st.session_state.forgot_email} କୁ ପଠାଯାଇଛି! (Check Inbox/Spam)")
+            st.success(f"📧 Real OTP tamara {st.session_state.forgot_email} par mokalyo chhe! (Inbox/Spam check karo)")
             e_otp = st.text_input("Enter 6-digit OTP")
             if st.button("Verify OTP"):
                 if e_otp == st.session_state.forgot_otp: st.session_state.forgot_step = 3; st.rerun()
-                else: st.error("❌ ଭୁଲ୍ OTP!")
+                else: st.error("❌ Khoto OTP!")
                     
         elif st.session_state.forgot_step == 3:
             new_pass = st.text_input("Enter New Password", type="password")
             if st.button("Update Password") and new_pass:
                 run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
-                st.success("✅ Password updated! Click 'Back to Home' to Login.")
+                st.success("✅ Password updated! 'Back to Home' par click kari login karo.")
                 st.session_state.forgot_step = 1

@@ -63,13 +63,11 @@ def run_query(query, params=()):
 def generate_license():
     return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
-# 🔴 ADVANCED THERMAL PRINTER CSS (Universal Fitting for 58mm & 80mm Portable Printers) 🔴
 def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, date_str):
     return f"""
     <html>
     <head>
     <style>
-        /* This perfectly fits all portable thermal machines */
         @media print {{
             @page {{ margin: 0; size: 58mm 100mm; }}
             body {{ margin: 0; padding: 0; background: #fff; }}
@@ -116,9 +114,47 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst, total_price, dat
     """
 
 # ==========================================
-# 2. PAGE CONFIG
+# 2. PAGE CONFIG & PREMIUM CSS
 # ==========================================
-st.set_page_config(page_title="Kulu ERP - POS Edition", layout="wide", page_icon="🧾")
+st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
+
+st.markdown("""
+    <style>
+    /* PREMIUM HOME GROUND CSS */
+    .hero-container {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 50px 20px;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin-bottom: 40px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    .hero-title { font-size: 48px; font-weight: 800; margin-bottom: 10px; letter-spacing: 1px; }
+    .hero-subtitle { font-size: 20px; font-weight: 300; opacity: 0.9; }
+
+    .feature-card {
+        background: #ffffff;
+        padding: 30px 20px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        border: 1px solid #eaeaea;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        margin-bottom: 15px;
+        height: 100%;
+    }
+    .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.15);
+    }
+    .card-icon { font-size: 55px; margin-bottom: 15px; }
+    .card-title { font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
+    .card-text { font-size: 15px; color: #7f8c8d; line-height: 1.5; }
+    
+    .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #eaeaea; color: #95a5a6; font-size: 14px; }
+    </style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # 3. SESSION STATES
@@ -146,7 +182,7 @@ if st.session_state.logged_in:
             st.title("👑 Super Admin Control Panel")
             st.info("Please use Wholesaler or Retail Shop login to test Barcode & Print Features.")
 
-        # ---------------- WHOLESALER & RETAIL SHOP (SEPARATE PURCHASE & SALES) ----------------
+        # ---------------- WHOLESALER & RETAIL SHOP ----------------
         else:
             my_data = run_query("SELECT license_key, package_type, shop_photo, name FROM users WHERE email=?", (st.session_state.user_email,))[0]
             shop_name = my_data[3]
@@ -174,10 +210,9 @@ if st.session_state.logged_in:
                     c2.metric("Today's Total Purchases", f"₹ {purch_data if purch_data else 0.0}")
                     c3.metric("Today's Net Profit", f"₹ {profit_data if profit_data else 0.0}")
 
-                # --- TAB 2: PURCHASE ENTRY (WITH AUTO GST & BARCODE) ---
+                # --- TAB 2: PURCHASE ENTRY ---
                 with tab_purch:
                     st.subheader("📥 Purchase Entry (Kharedi & Stock In)")
-                    st.write("Scan Barcode and enter purchase details. Purchase GST will be auto-calculated.")
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         i_bcode = st.text_input("||||| Scan Barcode (Optional)", key="p_bcode")
@@ -212,24 +247,16 @@ if st.session_state.logged_in:
                             st.success(f"✅ Purchase Saved! Stock Updated for '{i_name}'.")
                             st.rerun()
                         else: st.error("Please enter valid Product Name and Prices.")
-                    
-                    st.markdown("---")
-                    st.markdown("**Current Available Stock:**")
-                    stocks = run_query("SELECT item_name, stock, purchase_price, selling_price, barcode FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
-                    st.dataframe(pd.DataFrame(stocks, columns=["Item", "Qty", "Purchase (₹)", "Selling (₹)", "Barcode"]), use_container_width=True)
 
-                # --- TAB 3: SALES ENTRY (POS + BARCODE + PORTABLE PRINT) ---
+                # --- TAB 3: SALES ENTRY ---
                 with tab_sales:
                     st.subheader("🧾 Sales Entry (POS Billing)")
-                    st.info("Click the box below and use your scanner. The product will be auto-selected.")
-                    
                     scan_code = st.text_input("🔍 SCAN BARCODE HERE...", key="s_scan")
                     
                     stock_items = run_query("SELECT id, item_name, selling_price, stock, gst_rate, purchase_price, barcode FROM inventory WHERE shop_email=? AND stock > 0", (st.session_state.user_email,))
                     
                     if stock_items:
                         item_dict = {f"{item[1]} - ₹{item[2]} (Stock: {item[3]})": item for item in stock_items}
-                        
                         default_index = 0
                         if scan_code:
                             for idx, item in enumerate(stock_items):
@@ -241,7 +268,6 @@ if st.session_state.logged_in:
                                 st.error("Barcode not found in stock!")
                         
                         sel_item = st.selectbox("Select Product Manually", list(item_dict.keys()), index=default_index)
-                        
                         item_data = item_dict[sel_item]
                         i_id, i_name, default_sprice, i_stock, default_gst, i_pprice, _ = item_data
                         
@@ -270,29 +296,21 @@ if st.session_state.logged_in:
                                 run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (s_qty, i_id))
                                 run_query("INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                                           (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, 1 if is_gst_bill else 0, 'Sale'))
-                                
                                 st.success(f"✅ Sale Recorded Successfully! Total: ₹ {s_final_price:.2f}")
-                                st.balloons()
-                                
-                                # Store Thermal HTML Receipt in Session
                                 st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst if is_gst_bill else 0, s_final_price, str(date.today()))
                             else: st.error("❌ Not enough stock!")
-                            
                     else: st.warning("No stock available. Please add items in Purchase Entry tab first.")
 
-                    # --- SHOW PERFECT 58MM THERMAL PRINT PREVIEW ---
                     if "print_receipt" in st.session_state:
                         st.markdown("---")
                         st.subheader("🖨️ Portable Printer Bill Preview (58mm/80mm)")
-                        st.info("Click 'Print Receipt' in the preview box. It will automatically fit your Thermal Printer's size!")
                         components.html(st.session_state.print_receipt, height=500)
 
-                # --- TAB 4: REPORTS & P&L ---
+                # --- TAB 4: REPORTS ---
                 with tab_rep:
                     st.subheader("📄 Lifetime Balance Sheet & P&L")
                     t_sales = run_query("SELECT SUM(total_price), SUM(profit) FROM transactions WHERE shop_email=? AND trans_type='Sale'", (st.session_state.user_email,))
                     t_purch = run_query("SELECT SUM(total_price) FROM transactions WHERE shop_email=? AND trans_type='Purchase'", (st.session_state.user_email,))
-                    
                     sales_val = t_sales[0][0] or 0.0
                     net_profit = t_sales[0][1] or 0.0
                     purch_val = t_purch[0][0] or 0.0
@@ -307,33 +325,78 @@ if st.session_state.logged_in:
                     st.markdown(f"### Final Net Profit: ₹ {net_profit:.2f}")
 
 else:
-    # --- LOGGED OUT VIEWS ---
+    # --- LOGGED OUT VIEWS (PREMIUM DESIGN) ---
     if st.session_state.current_page == "Home Ground":
-        st.markdown('<div class="main-title">🏢 Kulu Smart ERP & Billing System</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="hero-container">
+            <div class="hero-title">🚀 Kulu Smart ERP & POS</div>
+            <div class="hero-subtitle">The Ultimate Cloud Billing, Barcode & Inventory Solution for Wholesalers & Retailers</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown('<div class="card-admin"><h3>👑 Super Admin</h3><p>Manage pricing, approve UTR, issue licenses.</p></div>', unsafe_allow_html=True)
-            if st.button("🔐 Login as Admin", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "SuperAdmin"; st.rerun()
+            st.markdown("""
+            <div class="feature-card" style="border-top: 5px solid #f44336;">
+                <div class="card-icon">👑</div>
+                <div class="card-title">Super Admin</div>
+                <div class="card-text">Manage software pricing, approve client licenses, and oversee platform revenue securely.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("🔐 Login as Admin", use_container_width=True): 
+                st.session_state.current_page = "Login"
+                st.session_state.login_role = "SuperAdmin"
+                st.rerun()
+                
         with col2:
-            st.markdown('<div class="card-whole"><h3>🏢 Wholesaler</h3><p>Control 100+ retail shops globally.</p></div>', unsafe_allow_html=True)
-            if st.button("🔐 Login as Wholesaler", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Wholesaler"; st.rerun()
+            st.markdown("""
+            <div class="feature-card" style="border-top: 5px solid #2196f3;">
+                <div class="card-icon">🏢</div>
+                <div class="card-title">Wholesaler Network</div>
+                <div class="card-text">Control master inventory, automate GST invoices, and track complete business P&L.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("🔐 Login as Wholesaler", use_container_width=True): 
+                st.session_state.current_page = "Login"
+                st.session_state.login_role = "Wholesaler"
+                st.rerun()
+                
         with col3:
-            st.markdown('<div class="card-shop"><h3>🏪 Retail Shop</h3><p>Smart GST/Non-GST bills & local stock.</p></div>', unsafe_allow_html=True)
-            if st.button("🔐 Login as Shop", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Shop"; st.rerun()
+            st.markdown("""
+            <div class="feature-card" style="border-top: 5px solid #4caf50;">
+                <div class="card-icon">🛒</div>
+                <div class="card-title">Retail POS System</div>
+                <div class="card-text">Universal barcode scanning, quick thermal printing, and smart automatic local stock tracking.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("🔐 Login as Shop", use_container_width=True): 
+                st.session_state.current_page = "Login"
+                st.session_state.login_role = "Shop"
+                st.rerun()
             
-        st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🛒 Register (Buy Software)"): st.session_state.current_page = "Register"; st.rerun()
+        st.markdown("<br><hr>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; color: #2c3e50; font-weight: bold;'>Join Kulu ERP Today!</h3><br>", unsafe_allow_html=True)
+        
+        c1, c2, c3 = st.columns([1, 2, 1])
         with c2:
-            if st.button("🔑 Forgot Password"): st.session_state.current_page = "Forgot Password"; st.rerun()
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if st.button("🛒 Register / Buy Software", use_container_width=True, type="primary"): 
+                    st.session_state.current_page = "Register"
+                    st.rerun()
+            with cc2:
+                if st.button("🔑 Forgot Password", use_container_width=True): 
+                    st.session_state.current_page = "Forgot Password"
+                    st.rerun()
+                    
+        st.markdown("<div class='footer'>© 2026 Kulu Smart Solutions. All Rights Reserved. Made for modern businesses.</div>", unsafe_allow_html=True)
 
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title(f"🔐 {st.session_state.login_role} Login")
         l_email = st.text_input("Email")
         l_pass = st.text_input("Password", type="password")
-        if st.button("Login"):
+        if st.button("Login", type="primary"):
             user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, l_pass))
             if user:
                 if user[0][3] == 1: st.error("❌ Your account has been Suspended/Deleted by Admin.")

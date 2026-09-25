@@ -528,14 +528,34 @@ else:
         packages = {f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1]), f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5])}
         
         with st.form("reg_form"):
-            r_role = st.selectbox("Register As", ["Shop", "Wholesaler"]); r_name = st.text_input("Business Name"); r_owner = st.text_input("Owner Name"); r_email = st.text_input("Email ID"); r_pass = st.text_input("Password", type="password")
+            r_role = st.selectbox("Register As", ["Shop", "Wholesaler"])
+            r_name = st.text_input("Business Name")
+            r_owner = st.text_input("Owner Name")
+            r_mob = st.text_input("Mobile Number")
+            r_email = st.text_input("Email ID")
+            r_pass = st.text_input("Password", type="password")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                r_aadhar = st.text_input("Aadhar Number")
+                r_pan = st.text_input("PAN / GST Number")
+            with c2:
+                r_state = st.selectbox("State", INDIAN_STATES)
+                r_addr = st.text_area("Full Business Address")
+                
             p_sel = st.radio("Select Package", list(packages.keys()))
             if st.form_submit_button("Next ➡️"):
-                if r_name and r_email and r_pass:
+                if r_name and r_email and r_pass and r_mob:
                     pkg_name, pkg_price = packages[p_sel]
                     total_with_gst = pkg_price + (pkg_price * settings[6] / 100)
-                    st.session_state.reg_data = {"role": r_role, "name": r_name, "owner": r_owner, "email": r_email, "pass": r_pass, "pkg_name": pkg_name, "total_amt": total_with_gst}
+                    st.session_state.reg_data = {
+                        "role": r_role, "name": r_name, "owner": r_owner, "mobile": r_mob, 
+                        "email": r_email, "pass": r_pass, "aadhar": r_aadhar, "pan": r_pan, 
+                        "state": r_state, "address": r_addr, "pkg_name": pkg_name, "total_amt": total_with_gst
+                    }
                     st.session_state.current_page = "Payment"; st.rerun()
+                else:
+                    st.warning("⚠️ Please fill all required fields (Business Name, Email, Password, Mobile).")
 
     elif st.session_state.current_page == "Payment":
         d = st.session_state.reg_data
@@ -546,7 +566,8 @@ else:
             new_key = generate_license()
             exp_date = str(date.today() + timedelta(days=36500))
             hash_new_pass = hash_pass(d['pass'])
-            run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0))
+            run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
+                      (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
             send_real_email(d['email'], "Your License Key", f"Key: {new_key}")
             st.success("✅ Payment Verified! Check Email for License Key."); st.balloons()
             

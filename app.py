@@ -54,7 +54,7 @@ def init_db():
         try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
         except: pass 
         
-    admin_cols_to_add = [("demo_price", "REAL DEFAULT 99.0"), ("six_month_price", "REAL DEFAULT 2499.0"), ("notice_text", "TEXT DEFAULT 'WELCOME TO KULU SMART ERP! PREMIUM POS SOFTWARE.'"), ("home_banner", "BLOB")]
+    admin_cols_to_add = [("demo_price", "REAL DEFAULT 99.0"), ("monthly_price", "REAL DEFAULT 499.0"), ("six_month_price", "REAL DEFAULT 2499.0"), ("yearly_price", "REAL DEFAULT 4999.0"), ("lifetime_price", "REAL DEFAULT 9999.0"), ("notice_text", "TEXT DEFAULT 'WELCOME TO KULU SMART ERP! PREMIUM POS SOFTWARE.'"), ("home_banner", "BLOB")]
     for col, dtype in admin_cols_to_add:
         try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
         except: pass
@@ -517,7 +517,13 @@ else:
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🛒 Buy Kulu ERP License")
         settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
-        packages = {f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1]), f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5])}
+        packages = {
+            f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1]),
+            f"Monthly Plan (1 Month) - ₹{settings[2]}": ("Monthly", settings[2]),
+            f"6 Months Plan (6 Months) - ₹{settings[3]}": ("6 Months", settings[3]),
+            f"1 Year Plan (1 Year) - ₹{settings[4]}": ("1 Year", settings[4]),
+            f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5])
+        }
         
         with st.form("reg_form"):
             r_role = st.selectbox("Register As", ["Shop", "Wholesaler"])
@@ -556,7 +562,9 @@ else:
         r_utr = st.text_input("Enter 12-Digit UTR No.")
         if st.button("Submit & Verify"):
             new_key = generate_license()
-            exp_date = str(date.today() + timedelta(days=36500))
+            days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
+            exp_days = days_map.get(d['pkg_name'], 30)
+            exp_date = str(date.today() + timedelta(days=exp_days))
             hash_new_pass = hash_pass(d['pass'])
             run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
                       (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))

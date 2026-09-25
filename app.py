@@ -5,7 +5,7 @@ import random
 import string
 
 # ==========================================
-# 1. DATABASE SETUP (With Recovery & License)
+# 1. DATABASE SETUP
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db')
@@ -17,11 +17,10 @@ def init_db():
                  payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT,
                  utr_no TEXT, paid_amount REAL, package_type TEXT, license_key TEXT, is_deleted INTEGER DEFAULT 0)''')
                  
-    # Admin Settings Table (Dynamic Pricing & UPI)
+    # Admin Settings Table 
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings
                  (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     
-    # Update older columns safely
     try:
         c.execute("ALTER TABLE users ADD COLUMN utr_no TEXT")
         c.execute("ALTER TABLE users ADD COLUMN paid_amount REAL")
@@ -73,6 +72,7 @@ st.markdown("""
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Home Ground"
 if "login_role" not in st.session_state: st.session_state.login_role = None
+if "admin_update_step" not in st.session_state: st.session_state.admin_update_step = 1
 
 # ==========================================
 # 4. APP ROUTING
@@ -86,13 +86,12 @@ if st.session_state.logged_in:
         st.rerun()
         
     elif menu == "My Dashboard":
-        # Fetch Latest Settings
         settings = run_query("SELECT upi_id, monthly_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1")[0]
         
         # ---------------- SUPER ADMIN ----------------
         if st.session_state.user_role == "SuperAdmin":
             st.title("👑 Super Admin Control Panel")
-            tab1, tab2, tab3 = st.tabs(["🛡️ Client Approvals", "⚙️ Pricing & UPI Settings", "♻️ Data Recovery"])
+            tab1, tab2, tab3, tab4 = st.tabs(["🛡️ Client Approvals", "⚙️ Pricing & UPI Settings", "♻️ Data Recovery", "🔐 Profile & Security"])
             
             with tab1:
                 st.subheader("Pending & Active Clients")
@@ -151,6 +150,48 @@ if st.session_state.logged_in:
                 else:
                     st.info("Recycle Bin is empty. No deleted data.")
 
+            with tab4:
+                st.subheader("🔐 Update Admin ID & Password")
+                st.write("Securely change your Super Admin Email, Mobile No, and Password with OTP Verification.")
+                
+                curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
+                
+                if st.session_state.admin_update_step == 1:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_email = st.text_input("New Email ID", value=curr_admin[0])
+                        new_mobile = st.text_input("New Mobile No.", value=curr_admin[1] if curr_admin[1] else "")
+                    with col2:
+                        new_pass = st.text_input("New Password", type="password", value=curr_admin[2])
+                        
+                    if st.button("📩 Send OTP to Confirm Changes"):
+                        st.session_state.admin_otp = str(random.randint(100000, 999999))
+                        st.session_state.update_data = {"email": new_email, "mobile": new_mobile, "pass": new_pass}
+                        st.session_state.admin_update_step = 2
+                        st.rerun()
+                        
+                elif st.session_state.admin_update_step == 2:
+                    st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.admin_otp}** ) sent to {st.session_state.user_email}")
+                    e_otp = st.text_input("Enter 6-digit OTP to confirm changes")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ Verify & Save Changes"):
+                            if e_otp == st.session_state.admin_otp:
+                                d = st.session_state.update_data
+                                run_query("UPDATE users SET email=?, mobile=?, password=? WHERE email=?", 
+                                          (d['email'], d['mobile'], d['pass'], st.session_state.user_email))
+                                st.success("🎉 Profile & Password Updated Successfully!")
+                                st.session_state.user_email = d['email'] # Update active session ID
+                                st.session_state.admin_update_step = 1
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid OTP. Try again.")
+                    with c2:
+                        if st.button("🚫 Cancel"):
+                            st.session_state.admin_update_step = 1
+                            st.rerun()
+
         # ---------------- WHOLESALER / SHOP ----------------
         else:
             st.title(f"🏢 {st.session_state.user_role} Dashboard")
@@ -173,7 +214,11 @@ else:
             if st.button("🔐 Login as Shop", use_container_width=True): st.session_state.current_page = "Login"; st.session_state.login_role = "Shop"; st.rerun()
             
         st.markdown("---")
-        if st.button("🛒 Register (Buy Software)"): st.session_state.current_page = "Register"; st.rerun()
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🛒 Register (Buy Software)"): st.session_state.current_page = "Register"; st.rerun()
+        with c2:
+            if st.button("🔑 Forgot Password"): st.session_state.current_page = "Forgot Password"; st.rerun()
 
     # ---------------- LOGIN ----------------
     elif st.session_state.current_page == "Login":
@@ -238,3 +283,42 @@ else:
                         st.error("❌ Email already registered.")
                 else:
                     st.warning("Please fill all fields and enter valid UTR/Amount.")
+
+    # ---------------- FORGOT PASSWORD ----------------
+    elif st.session_state.current_page == "Forgot Password":
+        if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
+            
+        st.title("🔑 Reset Password (All Users)")
+        if "forgot_step" not in st.session_state: st.session_state.forgot_step = 1
+        
+        if st.session_state.forgot_step == 1:
+            f_email = st.text_input("Enter your Registered Email")
+            if st.button("Send Reset OTP"):
+                check = run_query("SELECT email FROM users WHERE email=?", (f_email,))
+                if check:
+                    st.session_state.forgot_otp = str(random.randint(100000, 999999))
+                    st.session_state.forgot_email = f_email
+                    st.session_state.forgot_step = 2
+                    st.rerun()
+                else:
+                    st.error("❌ Email not found in our system.")
+                    
+        elif st.session_state.forgot_step == 2:
+            st.success(f"📧 EMAIL SENT! (Mock Test OTP: **{st.session_state.forgot_otp}** )")
+            e_otp = st.text_input("Enter 6-digit OTP")
+            if st.button("Verify OTP"):
+                if e_otp == st.session_state.forgot_otp:
+                    st.session_state.forgot_step = 3
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid OTP.")
+                    
+        elif st.session_state.forgot_step == 3:
+            new_pass = st.text_input("Enter New Password", type="password")
+            if st.button("Update Password"):
+                if new_pass:
+                    run_query("UPDATE users SET password=? WHERE email=?", (new_pass, st.session_state.forgot_email))
+                    st.success("✅ Password updated! Click 'Back to Home' to Login.")
+                    st.session_state.forgot_step = 1
+                else:
+                    st.warning("Password cannot be empty.")

@@ -121,17 +121,15 @@ st.set_page_config(page_title="Kulu Smart ERP", layout="wide", page_icon="🚀")
 
 st.markdown("""
     <style>
-    /* 🔴 AGGRESSIVELY HIDE ALL STREAMLIT BRANDING, MENUS & MANAGE APP BUTTONS 🔴 */
+    /* 🔴 SUPER AGGRESSIVE HIDE FOR ALL STREAMLIT CLOUD BRANDING & MANAGE APP BUTTONS 🔴 */
     #MainMenu {visibility: hidden !important; display: none !important;}
     header {visibility: hidden !important; display: none !important;}
     footer {visibility: hidden !important; display: none !important;}
-    .stDeployButton, [data-testid="stAppDeployButton"] {display: none !important; visibility: hidden !important;}
+    .stAppDeployButton, [data-testid="stAppDeployButton"], [data-testid="manage-app-button"] {display: none !important; visibility: hidden !important;}
+    .viewerBadge_container, .viewerBadge_link, div[class*="viewerBadge"], div[class*="manage-app"] {display: none !important; visibility: hidden !important;}
+    iframe[src*="badge"] {display: none !important; visibility: hidden !important;}
     [data-testid="stToolbar"] {display: none !important; visibility: hidden !important;}
     [data-testid="stDecoration"] {display: none !important; visibility: hidden !important;}
-    [data-testid="manage-app-button"] {display: none !important; visibility: hidden !important;}
-    .viewerBadge_container, .viewerBadge_link, div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
-    div[class*="manage-app"] {display: none !important; visibility: hidden !important;}
-    #manage-app-button, .manage-app-button {display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;}
     .st-emotion-cache-16txtl3 {padding-top: 0rem;}
     
     /* 🌟 NEW PREMIUM 3D BUTTONS 🌟 */

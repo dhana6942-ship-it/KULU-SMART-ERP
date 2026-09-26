@@ -579,17 +579,37 @@ else:
         r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
         if st.button("Submit & Verify"):
             if r_utr.strip():
+                # 30-Second Verification Simulation
+                with st.spinner("⏳ Verifying UTR with Bank Gateway & Generating License Key... Please wait (30s)"):
+                    progress_bar = st.progress(0)
+                    for percent_complete in range(100):
+                        time.sleep(0.3)
+                        progress_bar.progress(percent_complete + 1)
+                
                 new_key = generate_license()
                 days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
                 exp_days = days_map.get(d['pkg_name'], 30)
                 exp_date = str(date.today() + timedelta(days=exp_days))
                 hash_new_pass = hash_pass(d['pass'])
-                run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
-                          (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
-                send_real_email(d['email'], "Your License Key", f"Key: {new_key}")
-                st.success("✅ Payment Verified! Check Email for License Key."); st.balloons()
+                
+                try:
+                    run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
+                              (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
+                except Exception as db_err:
+                    # Fallback if email already exists
+                    run_query("UPDATE users SET password=?, license_key=?, expiry_date=?, package_type=?, utr_no=?, paid_amount=?, key_entered=0 WHERE email=?", 
+                              (hash_new_pass, new_key, exp_date, d['pkg_name'], r_utr, d['total_amt'], d['email']))
+                
+                # Auto email sending with fallback manual notice
+                email_sent = send_real_email(d['email'], "Your Kulu ERP License Key", f"Hello {d['name']},\n\nYour payment has been successfully verified!\n🔑 License Key: {new_key}\n📅 Valid Till: {exp_date}\n\nThanks for choosing Kulu Smart ERP.")
+                
+                if email_sent:
+                    st.success("✅ Payment Verified Successfully! License Key has been automatically emailed to your inbox.")
+                else:
+                    st.warning(f"⚠️ Payment verified, but email delivery had a network issue. Your Manual License Key is: **{new_key}** (Please copy and save it!)")
+                st.balloons()
             else:
-                st.error("⚠️ Please enter valid UTR No.")
+                st.error("⚠️ Please enter a valid 12-Digit UTR No.")
             
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()

@@ -557,19 +557,39 @@ else:
 
     elif st.session_state.current_page == "Payment":
         d = st.session_state.reg_data
+        admin_set = run_query("SELECT upi_id FROM admin_settings WHERE id=1")[0]
+        admin_upi = admin_set[0] if admin_set[0] else "kulusutar@ybl"
+        
         st.subheader("Step 3: Secure Payment")
-        st.write(f"Total Amount: ₹ {d['total_amt']:.2f}")
-        r_utr = st.text_input("Enter 12-Digit UTR No.")
+        st.write(f"Total Amount to Pay: **₹ {d['total_amt']:.2f}**")
+        
+        # Display UPI QR Code
+        safe_name = urllib.parse.quote("Kulu Smart ERP")
+        upi_link = f"upi://pay?pa={admin_upi}&pn={safe_name}&am={d['total_amt']:.2f}&cu=INR"
+        qr_src = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={urllib.parse.quote(upi_link)}"
+        
+        st.markdown(f"""
+            <div style="text-align: center; background: #fff; padding: 20px; border-radius: 15px; border: 2px dashed #007bff; width: fit-content; margin: 0 auto 20px auto;">
+                <img src="{qr_src}" width="160" height="160" style="border-radius: 10px;">
+                <p style="margin-top: 10px; font-weight: bold; color: #333;">Scan & Pay via any UPI App (GPay/PhonePe/Paytm)</p>
+                <p style="color: #666; font-size: 14px;">UPI ID: <b>{admin_upi}</b></p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
         if st.button("Submit & Verify"):
-            new_key = generate_license()
-            days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
-            exp_days = days_map.get(d['pkg_name'], 30)
-            exp_date = str(date.today() + timedelta(days=exp_days))
-            hash_new_pass = hash_pass(d['pass'])
-            run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
-                      (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
-            send_real_email(d['email'], "Your License Key", f"Key: {new_key}")
-            st.success("✅ Payment Verified! Check Email for License Key."); st.balloons()
+            if r_utr.strip():
+                new_key = generate_license()
+                days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
+                exp_days = days_map.get(d['pkg_name'], 30)
+                exp_date = str(date.today() + timedelta(days=exp_days))
+                hash_new_pass = hash_pass(d['pass'])
+                run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
+                          (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
+                send_real_email(d['email'], "Your License Key", f"Key: {new_key}")
+                st.success("✅ Payment Verified! Check Email for License Key."); st.balloons()
+            else:
+                st.error("⚠️ Please enter valid UTR No.")
             
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()

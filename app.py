@@ -45,6 +45,10 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
     
+    # NEW MEDICAL TABLES ADDED HERE SAFELY WITHOUT TOUCHING OLD DATA
+    c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (id INTEGER PRIMARY KEY, shop_email TEXT, medicine_name TEXT, batch_no TEXT, expiry_date TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY, shop_email TEXT, medicine_name TEXT, batch_no TEXT, expiry_date TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
+    
     cols_to_add = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
         ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
@@ -564,7 +568,6 @@ else:
         st.subheader("Step 3: Secure Payment")
         st.write(f"Total Amount to Pay: **₹ {d['total_amt']:.2f}**")
         
-        # Display UPI QR Code
         safe_name = urllib.parse.quote("Kulu Smart ERP")
         upi_link = f"upi://pay?pa={admin_upi}&pn={safe_name}&am={d['total_amt']:.2f}&cu=INR"
         qr_src = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={urllib.parse.quote(upi_link)}"

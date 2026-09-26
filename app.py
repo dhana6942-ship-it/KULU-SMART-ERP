@@ -40,7 +40,7 @@ def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
     conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER, aadhar TEXT, pan TEXT, gst TEXT, mobile TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
@@ -48,7 +48,8 @@ def init_db():
     cols_to_add = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
         ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
-        ("upi_id", "TEXT"), ("owner_name", "TEXT"), ("pan_gst_no", "TEXT"), ("address", "TEXT"), ("state", "TEXT")
+        ("upi_id", "TEXT"), ("owner_name", "TEXT"), ("pan_gst_no", "TEXT"), ("address", "TEXT"), ("state", "TEXT"),
+        ("aadhar", "TEXT"), ("pan", "TEXT"), ("gst", "TEXT"), ("mobile", "TEXT")
     ]
     for col, dtype in cols_to_add:
         try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
@@ -579,7 +580,6 @@ else:
         r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
         if st.button("Submit & Verify"):
             if r_utr.strip():
-                # 30-Second Verification Simulation
                 with st.spinner("⏳ Verifying UTR with Bank Gateway & Generating License Key... Please wait (30s)"):
                     progress_bar = st.progress(0)
                     for percent_complete in range(100):
@@ -596,11 +596,9 @@ else:
                     run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
                               (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], 'Paid', 1, r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, 0, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
                 except Exception as db_err:
-                    # Fallback if email already exists
                     run_query("UPDATE users SET password=?, license_key=?, expiry_date=?, package_type=?, utr_no=?, paid_amount=?, key_entered=0 WHERE email=?", 
                               (hash_new_pass, new_key, exp_date, d['pkg_name'], r_utr, d['total_amt'], d['email']))
                 
-                # Auto email sending with fallback manual notice
                 email_sent = send_real_email(d['email'], "Your Kulu ERP License Key", f"Hello {d['name']},\n\nYour payment has been successfully verified!\n🔑 License Key: {new_key}\n📅 Valid Till: {exp_date}\n\nThanks for choosing Kulu Smart ERP.")
                 
                 if email_sent:

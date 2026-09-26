@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Kulu Smart ERP - Medical Store", page_icon="💊", layout="wide"
 )
 
-# --- DATABASE CONNECTION & SETUP (Safe Migration - No Old Data Loss) ---
+# --- DATABASE CONNECTION & SETUP (Safe Migration - Old Data Preserved) ---
 DB_NAME = "kulu_smart_erp.db"
 
 
@@ -49,7 +49,7 @@ def init_db():
         )
     """)
 
-  # 3. Unified / Safe Transactions Table (Old Data Preserved)
+  # 3. Transactions Table (Old Data 100% Safe)
   cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,81 +70,94 @@ def init_db():
 
 init_db()
 
-# --- APP HEADER ---
-st.title("💊 Kulu Smart ERP - Medical Wholesale & Retail System")
-st.markdown("---")
-
 # --- SIDEBAR NAVIGATION ---
+st.sidebar.title("💊 Kulu Smart ERP")
+st.sidebar.markdown("---")
 menu = st.sidebar.selectbox(
-    "Navigation Menu",
+    "Go to Menu",
     [
-        "📊 Dashboard",
-        "📦 Wholesale Inventory & Purchase",
-        "🏷️ Retail Inventory & Purchase",
+        "🏠 Home Page",
+        "📦 Wholesale Inventory",
+        "🏷️ Retail Inventory",
         "🛒 Sales (POS Billing)",
         "📋 GST Summary & Reports",
         "⚖️ Balance Sheet",
     ],
 )
 
-# --- 1. DASHBOARD ---
-if menu == "📊 Dashboard":
-  st.subheader("📊 Business Dashboard & Overview")
+# --- 1. HOME PAGE ---
+if menu == "🏠 Home Page":
+  st.title("🌟 Welcome to Kulu Smart ERP")
+  st.markdown("### Professional Medical Wholesale & Retail Management System")
+  st.markdown("---")
 
   conn = get_connection()
   try:
     df_tx = pd.read_sql("SELECT * FROM transactions", conn)
+    df_ws = pd.read_sql("SELECT * FROM wholesale_medicines", conn)
+    df_ret = pd.read_sql("SELECT * FROM retail_medicines", conn)
   except Exception:
     df_tx = pd.DataFrame()
+    df_ws = pd.DataFrame()
+    df_ret = pd.DataFrame()
   conn.close()
 
-  col1, col2, col3, col4 = st.columns(4)
-
-  total_sales = (
+  tot_sales = (
       df_tx[df_tx["tx_type"] == "Sales"]["net_amount"].sum()
       if not df_tx.empty
       else 0.0
   )
-  total_purchase = (
+  tot_pur = (
       df_tx[df_tx["tx_type"] == "Purchase"]["net_amount"].sum()
       if not df_tx.empty
       else 0.0
   )
-  total_gst = (
-      df_tx["gst_amount"].sum() if (not df_tx.empty and "gst_amount" in df_tx) else 0.0
-  )
-  net_profit = total_sales - total_purchase
 
-  col1.metric("Total Sales (₹)", f"₹ {total_sales:,.2f}")
-  col2.metric("Total Purchase (₹)", f"₹ {total_purchase:,.2f}")
-  col3.metric("Net GST Collected (₹)", f"₹ {total_gst:,.2f}")
-  col4.metric("Estimated Balance / Profit", f"₹ {net_profit:,.2f}")
+  c1, c2, c3 = st.columns(3)
+  c1.metric("Total Sales Revenue", f"₹ {tot_sales:,.2f}")
+  c2.metric("Total Purchase Cost", f"₹ {tot_pur:,.2f}")
+  c3.metric(
+      "Total Medicines Registered",
+      f"{len(df_ws) + len(df_ret)} Items (Wholesale + Retail)",
+  )
 
   st.markdown("---")
-  st.subheader("Recent Business Activities")
-  if not df_tx.empty:
-    st.dataframe(df_tx.tail(10), use_container_width=True)
-  else:
-    info_msg = (
-        "No transactions recorded yet. Start by adding Purchase or Sales entries!"
-    )
-    st.info(info_msg)
+  st.subheader("🚀 Quick Navigation Shortcuts")
+  col_a, col_b, col_c = st.columns(3)
 
-# --- 2. WHOLESALE INVENTORY & PURCHASE ---
-elif menu == "📦 Wholesale Inventory & Purchase":
-  st.subheader("📦 Wholesale Medicine Management (Box / Carton System)")
+  with col_a:
+    st.info("📦 **Wholesale Section**\nManage boxes, cartons, and bulk entries.")
+  with col_b:
+    st.success(
+        "🏷️ **Retail Section**\nManage strips, tablets, and counter sales."
+    )
+  with col_c:
+    st.warning(
+        "🛒 **POS Billing**\nGenerate half-A4 tax invoices instantly."
+    )
+
+  st.markdown("---")
+  st.caption(
+      "Kulu Smart ERP | Safe Database Engine Active (Old Data 100% Protected)"
+  )
+
+# --- 2. WHOLESALE INVENTORY ---
+elif menu == "📦 Wholesale Inventory":
+  st.subheader("📦 Wholesale Medicine Management (Box & Carton System)")
 
   tab1, tab2 = st.tabs(["Add / Update Wholesale Item", "Wholesale Purchase Entry"])
 
   with tab1:
     with st.form("wholesale_item_form"):
-      item_name = st.text_input("Medicine Name (Wholesale)")
-      box_count = st.number_input("Initial Boxes / Cartons", min_value=0, value=10)
+      item_name = st.text_input("Wholesale Medicine Name")
+      box_count = st.number_input(
+          "Initial Boxes / Cartons", min_value=0, value=10
+      )
       strips_per_box = st.number_input(
-          "Strips/Packets per Box (e.g., 20 or 200)", min_value=1, value=200
+          "Packets/Strips per Box (e.g., 20 or 200)", min_value=1, value=200
       )
       tablets_per_strip = st.number_input(
-          "Tablets per Strip/Packet", min_value=1, value=10
+          "Tablets per Strip", min_value=1, value=10
       )
       purchase_price_box = st.number_input(
           "Purchase Price per Box (₹)", min_value=0.0, value=1000.0
@@ -153,7 +166,9 @@ elif menu == "📦 Wholesale Inventory & Purchase":
           "Selling Price per Box (₹)", min_value=0.0, value=1200.0
       )
       gst_option = st.selectbox(
-          "GST Rate (%) - Wholesale", [0.0, 5.0, 12.0, 18.0], format_func=lambda x: "No GST (0%)" if x == 0 else f"{x}%"
+          "GST Rate (%) - Wholesale",
+          [0.0, 5.0, 12.0, 18.0],
+          format_func=lambda x: "No GST (0%)" if x == 0 else f"{x}%",
       )
 
       submitted = st.form_submit_button("Save Wholesale Item")
@@ -191,12 +206,14 @@ elif menu == "📦 Wholesale Inventory & Purchase":
         conn.close()
         st.success(f"Wholesale item '{item_name}' saved successfully!")
 
-    st.markdown("### Current Wholesale Inventory")
+    st.markdown("### 📋 Current Wholesale Inventory Table")
     conn = get_connection()
     df_ws = pd.read_sql("SELECT * FROM wholesale_medicines", conn)
     conn.close()
     if not df_ws.empty:
       st.dataframe(df_ws, use_container_width=True)
+    else:
+      st.info("No wholesale items found.")
 
   with tab2:
     st.markdown("### Wholesale Purchase Entry with Optional GST")
@@ -210,9 +227,14 @@ elif menu == "📦 Wholesale Inventory & Purchase":
       with st.form("ws_purchase_form"):
         sel_item = st.selectbox("Select Wholesale Medicine", df_ws["item_name"])
         pur_boxes = st.number_input("Boxes Purchased", min_value=1, value=1)
-        unit_cost = st.number_input("Cost Price per Box (₹)", min_value=0.0, value=500.0)
+        unit_cost = st.number_input(
+            "Cost Price per Box (₹)", min_value=0.0, value=500.0
+        )
         gst_pct = st.selectbox(
-            "Purchase GST %", [0.0, 5.0, 12.0, 18.0], format_func=lambda x: "No GST" if x == 0 else f"{x}%", key="ws_p_gst"
+            "Purchase GST %",
+            [0.0, 5.0, 12.0, 18.0],
+            format_func=lambda x: "No GST" if x == 0 else f"{x}%",
+            key="ws_p_gst",
         )
 
         p_submit = st.form_submit_button("Confirm Wholesale Purchase")
@@ -245,23 +267,33 @@ elif menu == "📦 Wholesale Inventory & Purchase":
           )
           conn.commit()
           conn.close()
-          st.success(f"Successfully purchased {pur_boxes} boxes of {sel_item} (Total: ₹{net_amt:.2f})")
+          st.success(
+              f"Successfully purchased {pur_boxes} boxes of {sel_item} (Total:"
+              f" ₹{net_amt:.2f})"
+          )
 
-# --- 3. RETAIL INVENTORY & PURCHASE ---
-elif menu == "🏷️ Retail Inventory & Purchase":
+# --- 3. RETAIL INVENTORY ---
+elif menu == "🏷️ Retail Inventory":
   st.subheader("🏷️ Retail Medicine Store Management")
 
   tab1, tab2 = st.tabs(["Add / Update Retail Item", "Retail Purchase Entry"])
 
   with tab1:
     with st.form("retail_item_form"):
-      r_item = st.text_input("Medicine Name (Retail)")
+      r_item = st.text_input("Retail Medicine Name")
       r_strips = st.number_input("Initial Strips Count", min_value=0, value=50)
       r_t_per_s = st.number_input("Tablets per Strip", min_value=1, value=10)
-      r_p_price = st.number_input("Purchase Price per Strip (₹)", min_value=0.0, value=50.0)
-      r_s_price = st.number_input("Selling Price per Strip (₹)", min_value=0.0, value=70.0)
+      r_p_price = st.number_input(
+          "Purchase Price per Strip (₹)", min_value=0.0, value=50.0
+      )
+      r_s_price = st.number_input(
+          "Selling Price per Strip (₹)", min_value=0.0, value=70.0
+      )
       r_gst = st.selectbox(
-          "GST Rate (%) - Retail", [0.0, 5.0, 12.0, 18.0], format_func=lambda x: "No GST (0%)" if x == 0 else f"{x}%", key="r_gst_box"
+          "GST Rate (%) - Retail",
+          [0.0, 5.0, 12.0, 18.0],
+          format_func=lambda x: "No GST (0%)" if x == 0 else f"{x}%",
+          key="r_gst_box",
       )
 
       r_sub = st.form_submit_button("Save Retail Item")
@@ -298,12 +330,14 @@ elif menu == "🏷️ Retail Inventory & Purchase":
         conn.close()
         st.success(f"Retail item '{r_item}' saved successfully!")
 
-    st.markdown("### Current Retail Inventory")
+    st.markdown("### 📋 Current Retail Inventory Table")
     conn = get_connection()
     df_ret = pd.read_sql("SELECT * FROM retail_medicines", conn)
     conn.close()
     if not df_ret.empty:
       st.dataframe(df_ret, use_container_width=True)
+    else:
+      st.info("No retail items found.")
 
   with tab2:
     st.markdown("### Retail Purchase Entry with Optional GST")
@@ -317,9 +351,14 @@ elif menu == "🏷️ Retail Inventory & Purchase":
       with st.form("ret_purchase_form"):
         sel_r_item = st.selectbox("Select Retail Medicine", df_ret["item_name"])
         pur_strips = st.number_input("Strips Purchased", min_value=1, value=10)
-        r_unit_cost = st.number_input("Cost Price per Strip (₹)", min_value=0.0, value=40.0)
+        r_unit_cost = st.number_input(
+            "Cost Price per Strip (₹)", min_value=0.0, value=40.0
+        )
         r_gst_pct = st.selectbox(
-            "Retail Purchase GST %", [0.0, 5.0, 12.0, 18.0], format_func=lambda x: "No GST" if x == 0 else f"{x}%", key="r_p_gst"
+            "Retail Purchase GST %",
+            [0.0, 5.0, 12.0, 18.0],
+            format_func=lambda x: "No GST" if x == 0 else f"{x}%",
+            key="r_p_gst",
         )
 
         rp_submit = st.form_submit_button("Confirm Retail Purchase")
@@ -352,7 +391,10 @@ elif menu == "🏷️ Retail Inventory & Purchase":
           )
           conn.commit()
           conn.close()
-          st.success(f"Successfully purchased {pur_strips} strips of {sel_r_item} (Total: ₹{r_net_amt:.2f})")
+          st.success(
+              f"Successfully purchased {pur_strips} strips of {sel_r_item}"
+              f" (Total: ₹{r_net_amt:.2f})"
+          )
 
 # --- 4. SALES (POS BILLING WITH STRIP/TABLET CONVERSION & GST) ---
 elif menu == "🛒 Sales (POS Billing)":
@@ -363,22 +405,33 @@ elif menu == "🛒 Sales (POS Billing)":
   conn.close()
 
   if df_ret.empty:
-    st.warning("No retail medicines found in inventory. Please add items in Retail Inventory first.")
+    st.warning(
+        "No retail medicines found in inventory. Please add items in Retail"
+        " Inventory first."
+    )
   else:
     with st.form("pos_form"):
       customer_name = st.text_input("Customer Name", value="Walk-in Customer")
       item_sel = st.selectbox("Select Medicine", df_ret["item_name"])
 
-      # Fetch item details
       item_row = df_ret[df_ret["item_name"] == item_sel].iloc[0]
       t_per_s = int(item_row["tablets_per_strip"])
       price_per_strip = float(item_row["selling_price_per_strip"])
-      price_per_tablet = price_per_strip / t_per_s if t_per_s > 0 else price_per_strip
+      price_per_tablet = (
+          price_per_strip / t_per_s if t_per_s > 0 else price_per_strip
+      )
       available_strips = int(item_row["strips_count"])
 
-      st.info(f"Stock Available: {available_strips} Strips | 1 Strip = {t_per_s} Tablets | Price/Tablet: ₹{price_per_tablet:.2f} | Price/Strip: ₹{price_per_strip:.2f}")
+      st.info(
+          f"Stock Available: {available_strips} Strips | 1 Strip = {t_per_s}"
+          f" Tablets | Price/Tablet: ₹{price_per_tablet:.2f} | Price/Strip:"
+          f" ₹{price_per_strip:.2f}"
+      )
 
-      sale_mode = st.radio("Select Unit Type", ["Strips / Packets", "Individual Tablets (Pcs)"])
+      sale_mode = st.radio(
+          "Select Unit Type",
+          ["Strips / Packets", "Individual Tablets (Pcs)"],
+      )
 
       if sale_mode == "Strips / Packets":
         qty_num = st.number_input("Number of Strips", min_value=1, value=1)
@@ -386,14 +439,18 @@ elif menu == "🛒 Sales (POS Billing)":
         qty_str = f"{qty_num} Strips"
         total_strips_to_deduct = qty_num
       else:
-        qty_num = st.number_input("Number of Tablets (Pieces)", min_value=1, value=1)
+        qty_num = st.number_input(
+            "Number of Tablets (Pieces)", min_value=1, value=1
+        )
         unit_price = price_per_tablet
         qty_str = f"{qty_num} Tablets"
-        # Calculate equivalent strips fractional deduction
         total_strips_to_deduct = qty_num / t_per_s
 
       sales_gst_pct = st.selectbox(
-          "Sales GST %", [0.0, 5.0, 12.0, 18.0], format_func=lambda x: "No GST" if x == 0 else f"{x}%", key="s_gst"
+          "Sales GST %",
+          [0.0, 5.0, 12.0, 18.0],
+          format_func=lambda x: "No GST" if x == 0 else f"{x}%",
+          key="s_gst",
       )
 
       pos_submit = st.form_submit_button("Generate Bill & Complete Sale")
@@ -408,12 +465,11 @@ elif menu == "🛒 Sales (POS Billing)":
         else:
           conn = get_connection()
           cursor = conn.cursor()
-          # Deduct stock
           cursor.execute(
-              "UPDATE retail_medicines SET strips_count = strips_count - ? WHERE item_name = ?",
+              "UPDATE retail_medicines SET strips_count = strips_count - ? WHERE"
+              " item_name = ?",
               (total_strips_to_deduct, item_sel),
           )
-          # Log transaction
           cursor.execute(
               """
                         INSERT INTO transactions (tx_type, category, item_name, qty_units, total_amount, gst_amount, net_amount, tx_date)
@@ -437,9 +493,11 @@ elif menu == "🛒 Sales (POS Billing)":
 
           # --- HALF A4 / A5 PRINT FORMAT PREVIEW ---
           st.markdown("---")
-          st.markdown("### 🖨️ Tax Invoice (Half A4 / A5 Print Format)")
+          st.markdown(
+              "### 🖨️ Tax Invoice (Half A4 / A5 Print Format for Print)"
+          )
           invoice_html = f"""
-                    <div style="border: 2px dashed #333; padding: 15px; width: 50%; font-family: Arial, sans-serif; background: #fff; color: #000;">
+                    <div style="border: 2px dashed #333; padding: 15px; width: 60%; font-family: Arial, sans-serif; background: #fff; color: #000;">
                         <h3 style="text-align: center; margin: 0;">KULU SMART MEDICAL STORE</h3>
                         <p style="text-align: center; font-size: 12px; margin: 2px;">Link Road, Cuttack | Ph: 9853XXXXXX</p>
                         <hr>
@@ -465,7 +523,10 @@ elif menu == "🛒 Sales (POS Billing)":
                     </div>
                     """
           st.markdown(invoice_html, unsafe_allow_html=True)
-          st.info("Tip: Use browser print (Ctrl+P) and select A5 or half A4 layout to print this receipt.")
+          st.info(
+              "Tip: Use browser print (Ctrl+P) and set paper layout to A5 /"
+              " Half A4."
+          )
 
 # --- 5. GST SUMMARY & REPORTS ---
 elif menu == "📋 GST Summary & Reports":
@@ -493,7 +554,9 @@ elif menu == "📋 GST Summary & Reports":
     col1.metric("Output GST (Collected on Sales)", f"₹ {sales_gst:,.2f}")
     col2.metric("Input GST (Paid on Purchases)", f"₹ {purchase_gst:,.2f}")
 
-    st.markdown(f"### Net GST Payable to Government: **₹ {net_gst_payable:,.2f}**")
+    st.markdown(
+        f"### Net GST Payable to Government: **₹ {net_gst_payable:,.2f}**"
+    )
   else:
     st.info("No transaction data available for GST calculation.")
 
@@ -504,16 +567,20 @@ elif menu == "⚖️ Balance Sheet":
   conn = get_connection()
   try:
     df_tx = pd.read_sql("SELECT * FROM transactions", conn)
-    df_ws = pd.read_sql("SELECT * FROM wholesale_medicines", conn)
-    df_ret = pd.read_sql("SELECT * FROM retail_medicines", conn)
   except Exception:
     df_tx = pd.DataFrame()
-    df_ws = pd.DataFrame()
-    df_ret = pd.DataFrame()
   conn.close()
 
-  total_sales = df_tx[df_tx["tx_type"] == "Sales"]["net_amount"].sum() if not df_tx.empty else 0.0
-  total_purchase = df_tx[df_tx["tx_type"] == "Purchase"]["net_amount"].sum() if not df_tx.empty else 0.0
+  total_sales = (
+      df_tx[df_tx["tx_type"] == "Sales"]["net_amount"].sum()
+      if not df_tx.empty
+      else 0.0
+  )
+  total_purchase = (
+      df_tx[df_tx["tx_type"] == "Purchase"]["net_amount"].sum()
+      if not df_tx.empty
+      else 0.0
+  )
 
   col1, col2 = st.columns(2)
 
@@ -528,4 +595,7 @@ elif menu == "⚖️ Balance Sheet":
   st.markdown("---")
   gross_margin = total_sales - total_purchase
   st.metric("Estimated Gross Business Margin", f"₹ {gross_margin:,.2f}")
-  st.success("Balance sheet is automatically generated based on live database records without affecting your historical data.")
+  st.success(
+      "Balance sheet is generated automatically without affecting your"
+      " historical data."
+  )

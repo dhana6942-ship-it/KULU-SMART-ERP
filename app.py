@@ -405,7 +405,12 @@ if st.session_state.logged_in:
           st.image(admin_data[0], width=100)
 
       tab_act, tab_set, tab_rec, tab_prof = st.tabs(
-          ["✅ Active Clients", "⚙️ Pricing & Banner", "♻️ Data Recovery", "🔐 Admin Profile"]
+          [
+              "✅ Active Clients",
+              "⚙️ Pricing & Banner",
+              "♻️ Data Recovery",
+              "🔐 Admin Profile",
+          ]
       )
 
       with tab_act:
@@ -470,9 +475,7 @@ if st.session_state.logged_in:
         if settings[8]:
           st.image(settings[8], use_container_width=True)
           if st.button("🗑️ Delete Home Banner"):
-            run_query(
-                "UPDATE admin_settings SET home_banner=NULL WHERE id=1"
-            )
+            run_query("UPDATE admin_settings SET home_banner=NULL WHERE id=1")
             st.rerun()
         new_banner = st.file_uploader(
             "Upload New Home Banner", type=["jpg", "png", "jpeg"]
@@ -815,4 +818,553 @@ if st.session_state.logged_in:
           p_final_total = p_base + p_gst_amt
           if existing_item:
             run_query(
-                "UPDATE inventory SET stock = stock + ?, purchase_price=?,
+                "UPDATE inventory SET stock = stock + ?, purchase_price=?, selling_price=? WHERE barcode=? AND shop_email=?",
+                (i_qty, i_pprice, i_sprice, i_bcode, st.session_state.user_email),
+            )
+          else:
+            run_query(
+                "INSERT INTO inventory (shop_email, item_name, purchase_price, selling_price, stock, gst_rate, barcode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (st.session_state.user_email, i_name, i_pprice, i_sprice, i_qty, p_gst_pct, i_bcode),
+            )
+          run_query(
+              """INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type, rate, gst_pct, gst_amt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+              (st.session_state.user_email, str(date.today()), i_name, i_qty, p_final_total, 0, 1 if p_gst_pct > 0 else 0, 'Purchase', i_pprice, p_gst_pct, p_gst_amt),
+          )
+          st.success(f"✅ Purchase Saved! Value: ₹{p_final_total:.2f}")
+
+        st.markdown("---")
+        st.subheader("🖨️ Print Today's Purchase Entry (Match with Seller Bill)")
+        today_purchases = run_query(
+            "SELECT item_name, qty, rate, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND date=? AND trans_type='Purchase'",
+            (st.session_state.user_email, str(date.today())),
+        )
+        if today_purchases:
+          st.dataframe(
+              pd.DataFrame(today_purchases, columns=["Item", "Qty", "Buy Rate", "GST %", "GST Amt", "Total"]),
+              use_container_width=True,
+          )
+          if st.button("🖨️ Print Daily Purchase Report"):
+            st.session_state.purch_print = generate_purchase_report_html(shop_name, str(date.today()), today_purchases)
+            st.rerun()
+        if "purch_print" in st.session_state:
+          components.html(st.session_state.purch_print, height=600)
+          if st.button("❌ Close Purchase Print"):
+            del st.session_state.purch_print
+            st.rerun()
+
+      with tab_sales:
+        st.subheader("🧾 Sales POS (Manual GST Slab)")
+        if "print_receipt" in st.session_state:
+          st.success("✅ Sale Recorded Successfully! Print your bill below.")
+          components.html(st.session_state.print_receipt, height=600)
+          if st.button("➕ Create New Bill", type="primary"):
+            del st.session_state.print_receipt
+            st.rerun()
+        else:
+          with st.expander("👤 Customer Details", expanded=False):
+            c1, c2 = st.columns(2)
+            with c1:
+              raw_c_name = st.text_input("Customer Name")
+              cust_name = str(raw_c_name).strip().upper()
+            with c2:
+              cust_mob = st.text_input("Mobile Number")
+
+          scan_code = st.text_input("🔍 SCAN BARCODE HERE (Use Machine)...", key="s_scan")
+          stock_items_pos = run_query(
+              "SELECT id, item_name, selling_price, stock, purchase_price, gst_rate, barcode FROM inventory WHERE shop_email=? AND stock > 0",
+              (st.session_state.user_email,),
+          )
+          if stock_items_pos:
+            item_dict_pos = {f"{str(item[1]).upper()} - ₹{item[2]} (Stock: {item[3]})": item for item in stock_items_pos}
+            default_index_pos = 0
+            if scan_code:
+              for idx, item in enumerate(stock_items_pos):
+                if str(item[6]) == str(scan_code):
+                  default_index_pos = idx
+                  st.success(f"Barcode Matched: {str(item[1]).upper()}")
+                  break
+            sel_item_pos = st.selectbox("Select Product", list(item_dict_pos.keys()), index=default_index_pos)
+            i_id, i_name_raw, default_sprice, i_stock, i_pprice, def_gst, _ = item_dict_pos[sel_item_pos]
+            i_name = str(i_name_raw).upper()
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+              s_qty = st.number_input("Quantity", min_value=1, max_value=i_stock, value=1)
+            with col2:
+              s_price = st.number_input("Rate (₹)", value=float(default_sprice))
+            with col3:
+              gst_options = {
+                  "No GST (0%)": 0,
+                  "5% GST": 5,
+                  "12% GST": 12,
+                  "18% GST": 18,
+                  "28% GST": 28,
+              }
+              s_gst_pct = gst_options[st.selectbox("Select GST Slab", list(gst_options.keys()))]
+
+            s_base = s_price * s_qty
+            if s_gst_pct > 0:
+              gst_amt = (s_base * s_gst_pct) / 100
+              s_final_price = s_base + gst_amt
+              is_gst_bill = 1
+            else:
+              gst_amt = 0
+              s_final_price = s_base
+              is_gst_bill = 0
+            profit = s_final_price - (i_pprice * s_qty)
+            st.write(f"**Base Amount:** ₹{s_base:.2f} | **GST Amount:** ₹{gst_amt:.2f}")
+            st.write(f"### **Total Payable:** ₹ {s_final_price:.2f}")
+
+            if st.button("🛒 Generate Sale Bill & Print", type="primary"):
+              if s_qty <= i_stock:
+                inv_no = "INV-" + "".join(random.choices(string.digits, k=6))
+                run_query("UPDATE inventory SET stock = stock - ? WHERE id=?", (s_qty, i_id))
+                run_query(
+                    """INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type, customer_name, customer_mobile, invoice_no, rate, gst_pct, gst_amt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (st.session_state.user_email, str(date.today()), i_name, s_qty, s_final_price, profit, is_gst_bill, 'Sale', cust_name, cust_mob, inv_no, s_price, s_gst_pct, gst_amt),
+                )
+                st.session_state.print_receipt = generate_receipt_html(shop_name, i_name, s_qty, s_price, s_gst_pct, gst_amt, s_final_price, str(date.today()), shop_upi, cust_name, cust_mob, inv_no, s_base)
+                st.rerun()
+              else:
+                st.error("Not enough stock!")
+
+      with tab_hist:
+        st.subheader("🖨️ Bill History & Reprint")
+        history = run_query(
+            "SELECT invoice_no, date, customer_name, item_name, qty, rate, gst_pct, total_price, gst_amt, customer_mobile FROM transactions WHERE shop_email=? AND trans_type='Sale' ORDER BY id DESC LIMIT 50",
+            (st.session_state.user_email,),
+        )
+        if history:
+          history_clean = [h for h in history if h[0]]
+          if history_clean:
+            st.dataframe(
+                pd.DataFrame(
+                    history_clean,
+                    columns=[
+                        "Invoice No",
+                        "Date",
+                        "Customer",
+                        "Item",
+                        "Qty",
+                        "Rate",
+                        "GST %",
+                        "Total (₹)",
+                        "GST Amt",
+                        "Mob",
+                    ],
+                )[["Invoice No", "Date", "Customer", "Item", "Total (₹)"]],
+                use_container_width=True,
+            )
+            c1, c2 = st.columns([2, 1])
+            with c1:
+              sel_inv = st.selectbox("🔍 Select Invoice to Reprint", [h[0] for h in history_clean])
+            with c2:
+              st.markdown("<br>", unsafe_allow_html=True)
+              if st.button("🖨️ Reprint Selected Bill"):
+                bill = [h for h in history_clean if h[0] == sel_inv][0]
+                base_val = bill[5] * bill[4]
+                st.session_state.reprint_receipt = generate_receipt_html(
+                    shop_name,
+                    str(bill[3]).upper(),
+                    bill[4],
+                    bill[5] or 0.0,
+                    bill[6] or 0.0,
+                    bill[8] or 0.0,
+                    bill[7],
+                    str(bill[1]),
+                    shop_upi,
+                    str(bill[2]).upper(),
+                    bill[9],
+                    bill[0],
+                    base_val,
+                )
+                st.rerun()
+        if "reprint_receipt" in st.session_state:
+          st.markdown("---")
+          st.success("✅ Bill Loaded for Reprint!")
+          components.html(st.session_state.reprint_receipt, height=600)
+          if st.button("❌ Close Reprint View"):
+            del st.session_state.reprint_receipt
+            st.rerun()
+
+      with tab_gst_rep:
+        st.subheader("📊 GST Filing & Balance Sheet")
+        gst_data = run_query(
+            "SELECT invoice_no, date, customer_name, total_price - gst_amt, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND trans_type='Sale' AND is_gst=1",
+            (st.session_state.user_email,),
+        )
+        if gst_data:
+          df_gst = pd.DataFrame(
+              gst_data,
+              columns=[
+                  "Invoice",
+                  "Date",
+                  "Customer",
+                  "Base Value (₹)",
+                  "GST %",
+                  "GST Amount (₹)",
+                  "Total Value (₹)",
+              ],
+          )
+          df_gst["Customer"] = df_gst["Customer"].str.upper()
+          st.dataframe(df_gst, use_container_width=True)
+          tot_gst = df_gst["GST Amount (₹)"].sum()
+          st.metric("Total GST Collected (Payable)", f"₹ {tot_gst:.2f}")
+          st.markdown("---")
+          st.write("🖨️ **Print PDF for CA**")
+          components.html(generate_gst_report_html(df_gst, tot_gst, shop_name), height=100)
+        else:
+          st.info("No GST sales found yet.")
+
+      if st.session_state.user_role == "Wholesaler":
+        with tab_net:
+          st.subheader("🏪 Live Retailer Stock Tracking")
+          r_stocks = run_query(
+              "SELECT UPPER(u.name), u.email, UPPER(i.item_name), i.stock, i.selling_price FROM inventory i JOIN users u ON i.shop_email = u.email WHERE u.role = 'Shop' AND i.stock > 0"
+          )
+          if r_stocks:
+            st.dataframe(
+                pd.DataFrame(
+                    r_stocks,
+                    columns=[
+                        "Retail Shop",
+                        "Email",
+                        "Product",
+                        "Stock",
+                        "Price (₹)",
+                    ],
+                ),
+                use_container_width=True,
+            )
+          else:
+            st.info("No stock data.")
+
+      with tab_prof:
+        st.subheader("⚙️ Update Shop Profile & Settings")
+        up_img = st.file_uploader("Upload Profile Photo", type=["jpg", "png", "jpeg"])
+        if up_img and st.button("💾 Save Profile Photo"):
+          run_query(
+              "UPDATE users SET shop_photo=? WHERE email=?",
+              (up_img.read(), st.session_state.user_email),
+          )
+          st.success("Photo updated!")
+          st.rerun()
+        with st.form("shop_profile_form"):
+          c1, c2 = st.columns(2)
+          with c1:
+            raw_upi = st.text_input("Shop UPI ID", value=shop_upi if shop_upi else "")
+            new_upi = str(raw_upi).strip()
+          with c2:
+            raw_gst = st.text_input("Shop GST No.", value=shop_gst if shop_gst else "")
+            new_gst = str(raw_gst).strip().upper()
+          if st.form_submit_button("💾 Save Settings"):
+            run_query(
+                "UPDATE users SET upi_id=?, gst=? WHERE email=?",
+                (new_upi, new_gst, st.session_state.user_email),
+            )
+            st.success("✅ Profile Updated!")
+            st.rerun()
+
+else:
+  if st.session_state.current_page == "Home Ground":
+    settings = run_query(
+        "SELECT notice_text, home_banner FROM admin_settings WHERE id=1"
+    )[0]
+    st.markdown(
+        f"""<div class="notice-board"><marquee behavior="scroll" direction="left" scrollamount="8">📢 {str(settings[0]).upper() if settings[0] else "WELCOME TO KULU SMART ERP!"}</marquee></div>""",
+        unsafe_allow_html=True,
+    )
+    if settings[1]:
+      st.image(settings[1], use_container_width=True)
+    else:
+      st.markdown(
+          """<div class="hero-container"><div class="hero-title">🚀 KULU SMART ERP & POS</div><div class="hero-subtitle">NEXT-GEN CLOUD BILLING, BARCODE & INVENTORY</div></div>""",
+          unsafe_allow_html=True,
+      )
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+      st.markdown(
+          """<div class="feature-card border-admin"><div class="card-icon">👑</div><div class="card-title">Super Admin</div><div class="card-text">Control software licensing and global system settings.</div></div>""",
+          unsafe_allow_html=True,
+      )
+      if st.button("Secure Admin Login", use_container_width=True):
+        st.session_state.current_page = "Login"
+        st.session_state.login_role = "SuperAdmin"
+        st.rerun()
+    with col2:
+      st.markdown(
+          """<div class="feature-card border-wholesale"><div class="card-icon">🏢</div><div class="card-title">Wholesale Hub</div><div class="card-text">Manage massive B2B sales and track retailer network.</div></div>""",
+          unsafe_allow_html=True,
+      )
+      if st.button("Wholesaler Portal", use_container_width=True):
+        st.session_state.current_page = "Login"
+        st.session_state.login_role = "Wholesaler"
+        st.rerun()
+    with col3:
+      st.markdown(
+          """<div class="feature-card border-shop"><div class="card-icon">🛒</div><div class="card-title">Retail POS</div><div class="card-text">Lightning fast barcode billing & smart inventory tools.</div></div>""",
+          unsafe_allow_html=True,
+      )
+      if st.button("Shop POS Login", use_container_width=True):
+        st.session_state.current_page = "Login"
+        st.session_state.login_role = "Shop"
+        st.rerun()
+
+    st.markdown(
+        """<div class="register-section"><h2 style='color: #1a1a1a; font-weight: 800; margin-bottom: 20px;'>READY TO TRANSFORM YOUR BUSINESS?</h2><p style='color: #666; font-size: 18px; margin-bottom: 30px;'>Join thousands of businesses using Kulu Smart ERP today.</p>""",
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+      cc1, cc2 = st.columns(2)
+      with cc1:
+        if st.button("🚀 Buy Software License", use_container_width=True, type="primary"):
+          st.session_state.current_page = "Register"
+          st.rerun()
+      with cc2:
+        if st.button("🔑 Password Recovery", use_container_width=True):
+          st.session_state.current_page = "Forgot Password"
+          st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='footer'>© 2026 Kulu Smart Solutions Global. Engineered for"
+        " Excellence.</div>",
+        unsafe_allow_html=True,
+    )
+
+  elif st.session_state.current_page == "Login":
+    if st.button("⬅️ Back to Home"):
+      st.session_state.current_page = "Home Ground"
+      st.rerun()
+    st.title(f"🔐 {st.session_state.login_role} Login")
+    l_email = st.text_input("Email Address")
+    l_pass = st.text_input("Secure Password", type="password")
+
+    c_l1, c_l2 = st.columns(2)
+    with c_l1:
+      if st.button("Login", type="primary"):
+        hash_attempt = hash_pass(l_pass)
+        user = run_query(
+            "SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?",
+            (l_email, hash_attempt),
+        )
+        if user:
+          if user[0][3] == 1:
+            st.error("❌ Your account is Suspended.")
+          elif user[0][1] == st.session_state.login_role:
+            st.session_state.logged_in = True
+            st.session_state.user_role = user[0][1]
+            st.session_state.user_email = l_email
+            st.rerun()
+          else:
+            st.error("❌ Role Mismatch.")
+        else:
+          st.error("Invalid Credentials.")
+    with c_l2:
+      if st.button("🔑 Forgot Password?"):
+        st.session_state.current_page = "Forgot Password"
+        st.rerun()
+
+  elif st.session_state.current_page == "Register":
+    if st.button("⬅️ Back to Home"):
+      st.session_state.current_page = "Home Ground"
+      st.rerun()
+    st.title("🛒 Buy Kulu ERP License")
+    settings = run_query(
+        "SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst FROM admin_settings WHERE id=1"
+    )[0]
+    packages = {
+        f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1]),
+        f"Monthly Plan (1 Month) - ₹{settings[2]}": ("Monthly", settings[2]),
+        f"6 Months Plan (6 Months) - ₹{settings[3]}": ("6 Months", settings[3]),
+        f"1 Year Plan (1 Year) - ₹{settings[4]}": ("1 Year", settings[4]),
+        f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5]),
+    }
+
+    with st.form("reg_form"):
+      r_role = st.selectbox("Register As", ["Shop", "Wholesaler"])
+      raw_r_name = st.text_input("Business Name")
+      r_name = str(raw_r_name).strip().upper()
+      raw_r_owner = st.text_input("Owner Name")
+      r_owner = str(raw_r_owner).strip().upper()
+      r_mob = st.text_input("Mobile Number")
+      r_email = st.text_input("Email ID")
+      r_pass = st.text_input("Password", type="password")
+
+      c1, c2 = st.columns(2)
+      with c1:
+        r_aadhar = st.text_input("Aadhar Number")
+        raw_r_pan = st.text_input("PAN / GST Number")
+        r_pan = str(raw_r_pan).strip().upper()
+      with c2:
+        r_state = st.selectbox("State", INDIAN_STATES)
+        raw_r_addr = st.text_area("Full Business Address")
+        r_addr = str(raw_r_addr).strip().upper()
+
+      p_sel = st.radio("Select Package", list(packages.keys()))
+      if st.form_submit_button("Next ➡️"):
+        if r_name and r_email and r_pass and r_mob:
+          pkg_name, pkg_price = packages[p_sel]
+          total_with_gst = pkg_price + (pkg_price * settings[6] / 100)
+          st.session_state.reg_data = {
+              "role": r_role,
+              "name": r_name,
+              "owner": r_owner,
+              "mobile": r_mob,
+              "email": r_email,
+              "pass": r_pass,
+              "aadhar": r_aadhar,
+              "pan": r_pan,
+              "state": r_state,
+              "address": r_addr,
+              "pkg_name": pkg_name,
+              "total_amt": total_with_gst,
+          }
+          st.session_state.current_page = "Payment"
+          st.rerun()
+        else:
+          st.warning("⚠️ Please fill all required fields (Business Name, Email, Password, Mobile).")
+
+  elif st.session_state.current_page == "Payment":
+    d = st.session_state.reg_data
+    admin_set = run_query("SELECT upi_id FROM admin_settings WHERE id=1")[0]
+    admin_upi = admin_set[0] if admin_set[0] else "kulusutar@ybl"
+
+    st.subheader("Step 3: Secure Payment")
+    st.write(f"Total Amount to Pay: **₹ {d['total_amt']:.2f}**")
+
+    safe_name = urllib.parse.quote("Kulu Smart ERP")
+    upi_link = f"upi://pay?pa={admin_upi}&pn={safe_name}&am={d['total_amt']:.2f}&cu=INR"
+    qr_src = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={urllib.parse.quote(upi_link)}"
+
+    st.markdown(
+        f"""
+        <div style="text-align: center; background: #fff; padding: 20px; border-radius: 15px; border: 2px dashed #007bff; width: fit-content; margin: 0 auto 20px auto;">
+            <img src="{qr_src}" width="160" height="160" style="border-radius: 10px;">
+            <p style="margin-top: 10px; font-weight: bold; color: #333;">Scan & Pay via any UPI App (GPay/PhonePe/Paytm)</p>
+            <p style="color: #666; font-size: 14px;">UPI ID: <b>{admin_upi}</b></p>
+        </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
+    if st.button("Submit & Verify"):
+      if r_utr.strip():
+        with st.spinner("⏳ Verifying UTR with Bank Gateway & Generating License Key... Please wait (30s)"):
+          progress_bar = st.progress(0)
+          for percent_complete in range(100):
+            time.sleep(0.3)
+            progress_bar.progress(percent_complete + 1)
+
+        new_key = generate_license()
+        days_map = {
+            "Demo": 10,
+            "Monthly": 30,
+            "6 Months": 180,
+            "1 Year": 365,
+            "Lifetime": 36500,
+        }
+        exp_days = days_map.get(d["pkg_name"], 30)
+        exp_date = str(date.today() + timedelta(days=exp_days))
+        hash_new_pass = hash_pass(d["pass"])
+
+        try:
+          run_query(
+              """INSERT INTO users (name, owner_name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, mobile, aadhar, pan, address, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+              (
+                  d["name"],
+                  d["owner"],
+                  d["email"],
+                  hash_new_pass,
+                  d["role"],
+                  "Paid",
+                  1,
+                  r_utr,
+                  d["total_amt"],
+                  d["pkg_name"],
+                  new_key,
+                  exp_date,
+                  0,
+                  d["mobile"],
+                  d["aadhar"],
+                  d["pan"],
+                  d["address"],
+                  d["state"],
+              ),
+          )
+        except Exception as db_err:
+          run_query(
+              "UPDATE users SET password=?, license_key=?, expiry_date=?, package_type=?, utr_no=?, paid_amount=?, key_entered=0 WHERE email=?",
+              (
+                  hash_new_pass,
+                  new_key,
+                  exp_date,
+                  d["pkg_name"],
+                  r_utr,
+                  d["total_amt"],
+                  d["email"],
+              ),
+          )
+
+        email_sent = send_real_email(
+            d["email"],
+            "Your Kulu ERP License Key",
+            f"Hello {d['name']},\n\nYour payment has been successfully verified!\n🔑 License Key: {new_key}\n📅 Valid Till: {exp_date}\n\nThanks for choosing Kulu Smart ERP.",
+        )
+
+        if email_sent:
+          st.success("✅ Payment Verified Successfully! License Key has been automatically emailed to your inbox.")
+        else:
+          st.warning(f"⚠️ Payment verified, but email delivery had a network issue. Your Manual License Key is: **{new_key}** (Please copy and save it!)")
+        st.balloons()
+      else:
+        st.error("⚠️ Please enter a valid 12-Digit UTR No.")
+
+  elif st.session_state.current_page == "Forgot Password":
+    if st.button("⬅️ Back to Home"):
+      st.session_state.current_page = "Home Ground"
+      st.rerun()
+    st.title("🔑 Reset Password via OTP")
+
+    if "f_step" not in st.session_state:
+      st.session_state.f_step = 1
+
+    if st.session_state.f_step == 1:
+      f_email = st.text_input("Enter Registered Email ID")
+      if st.button("Send OTP"):
+        chk = run_query("SELECT email FROM users WHERE email=?", (f_email,))
+        if chk:
+          otp_code = "".join(random.choices(string.digits, k=6))
+          st.session_state.otp_code = otp_code
+          st.session_state.f_email = f_email
+          send_real_email(f_email, "Password Reset OTP", f"Your OTP for Kulu ERP Password Reset is: {otp_code}")
+          st.success("✅ OTP sent to your registered email!")
+          st.session_state.f_step = 2
+          st.rerun()
+        else:
+          st.error("❌ Email not found in database!")
+
+    elif st.session_state.f_step == 2:
+      st.info(f"OTP sent to {st.session_state.get('f_email')}")
+      entered_otp = st.text_input("Enter 6-Digit OTP")
+      new_pass1 = st.text_input("New Password", type="password")
+      new_pass2 = st.text_input("Confirm New Password", type="password")
+
+      if st.button("Reset Password", type="primary"):
+        if entered_otp.strip() == str(st.session_state.get("otp_code")):
+          if new_pass1 == new_pass2 and new_pass1:
+            new_h = hash_pass(new_pass1)
+            run_query(
+                "UPDATE users SET password=? WHERE email=?",
+                (new_h, st.session_state.get("f_email")),
+            )
+            st.success("✅ Password successfully updated! Please login now.")
+            del st.session_state.f_step
+            st.session_state.current_page = "Home Ground"
+            st.rerun()
+          else:
+            st.error("❌ Passwords do not match or empty.")
+        else:
+          st.error("❌ Invalid OTP!")

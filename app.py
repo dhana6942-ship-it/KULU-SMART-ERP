@@ -37,7 +37,7 @@ def send_real_email(receiver_email, subject, body_text):
 
 
 # ==========================================
-# 1. DATABASE SETUP (Old Data 100% Safe + 2 New Medical Tables)
+# 1. DATABASE SETUP (Old Data 100% Safe + 2 Medical Tables)
 # ==========================================
 def init_db():
   conn = sqlite3.connect("kulu_erp_system.db", timeout=20)
@@ -56,7 +56,7 @@ def init_db():
       """CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)"""
   )
 
-  # --- 2 EXTRA TABLES REQUESTED BY YOU (Wholesale & Store) ---
+  # --- 2 EXTRA TABLES FOR MEDICAL WHOLESALE & STORE ---
   c.execute("""
         CREATE TABLE IF NOT EXISTS medical_wholesaler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1097,7 +1097,7 @@ if st.session_state.logged_in:
         else:
           st.info("No GST sales found yet.")
 
-      # NEW TAB: Medical Wholesaler Table Management
+      # Medical Wholesaler Table Section
       if st.session_state.user_role == "Wholesaler":
         with tab_med_ws:
           st.subheader(
@@ -1189,7 +1189,7 @@ if st.session_state.logged_in:
           else:
             st.info("No stock data.")
 
-      # NEW TAB: Medical Store Table Management
+      # Medical Store Table Section
       if st.session_state.user_role == "Shop":
         with tab_med_st:
           st.subheader("💊 Medical Store Management (Strips & Tablets)")
@@ -1276,7 +1276,7 @@ if st.session_state.logged_in:
             new_gst = str(raw_gst).strip().upper()
           if st.form_submit_button("💾 Save Settings"):
             run_query(
-                "UPDATE users SET upi_id=?, gst=? WHERE email=?",
+                "UPDATE users SET shop_upi=?, gst=? WHERE email=?",
                 (new_upi, new_gst, st.session_state.user_email),
             )
             st.success("✅ Profile Updated!")

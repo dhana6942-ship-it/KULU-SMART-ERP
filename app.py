@@ -34,7 +34,7 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (ALL 7 TABLES & ALL COLUMNS RESTORED)
+# 1. DATABASE SETUP (TOTAL 7 TABLES)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
@@ -151,21 +151,6 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, tot
     gst_html = f"<tr><td>Base Amount:</td><td class='right'>₹ {base_amt:.2f}</td></tr><tr><td>GST ({gst_pct}%):</td><td class='right'>(+) ₹ {gst_amt:.2f}</td></tr>" if gst_pct > 0 else ""
     return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name.upper()}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name.upper()}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
 
-# 🔴 PURCHASE REPORT HTML 🔴
-def generate_purchase_report_html(shop_name, date_str, purchases):
-    rows = ""
-    tot_base = 0; tot_gst = 0; tot_net = 0
-    for p in purchases:
-        base = p[1] * p[2]
-        tot_base += base; tot_gst += p[4]; tot_net += p[5]
-        rows += f"<tr><td>{str(p[0]).upper()}</td><td>{p[1]}</td><td>₹{p[2]:.2f}</td><td>{p[3]}%</td><td>₹{p[4]:.2f}</td><td>₹{p[5]:.2f}</td></tr>"
-    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 80mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; }} .receipt-box {{ width: 80mm; min-width: 300px; max-width: 100%; margin: 0 auto; padding: 15px; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 10px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 11px; margin: 10px 0; border-collapse: collapse; text-align: left; }} th, td {{ padding: 4px; border-bottom: 1px dotted #ccc; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 20px; display: block; width: 100%; }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 18px;">{shop_name.upper()}</div><div class="center" style="font-size: 12px; margin-bottom: 5px;">Daily Purchase Entry Report</div><div class="center" style="font-size: 12px;">Date: {date_str}</div><div class="line"></div><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Tax</th><th>Total</th></tr>{rows}</table><div class="line"></div><div class="right bold">Total Base Amount: ₹ {tot_base:.2f}</div><div class="right bold">Total GST Paid: (+) ₹ {tot_gst:.2f}</div><div class="right bold" style="font-size: 16px; margin-top: 5px;">Net Purchase Value: ₹ {tot_net:.2f}</div><div class="line"></div><div class="center" style="font-size: 11px; margin-top: 5px;">* Verify this report with Seller's Invoice *</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Purchase Report</button></div></body></html>"""
-
-def generate_gst_report_html(df_gst, tot_gst, shop_name):
-    rows = ""
-    for _, r in df_gst.iterrows(): rows += f"<tr><td>{r['Invoice']}</td><td>{r['Date']}</td><td>{str(r['Customer']).upper()}</td><td>₹{r['Base Value (₹)']:.2f}</td><td>{r['GST %']}%</td><td>₹{r['GST Amount (₹)']:.2f}</td><td>₹{r['Total Value (₹)']:.2f}</td></tr>"
-    return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name.upper()}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
-
 # ==========================================
 # 2. PAGE CONFIG & UI CSS
 # ==========================================
@@ -280,29 +265,78 @@ if st.session_state.logged_in:
         
     elif menu == "Gateway of ERP":
         if st.session_state.user_role == "SuperAdmin":
-            st.title("👑 Super Admin Control Panel")
+            admin_data = run_query("SELECT shop_photo FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            c1, c2 = st.columns([4, 1])
+            with c1: st.title("👑 Super Admin Control Panel")
+            with c2: 
+                if admin_data[0]: st.image(admin_data[0], width=100)
+                
             tab_act, tab_set, tab_rec, tab_prof = st.tabs(["✅ Active Clients", "⚙️ Pricing & Banner", "♻️ Data Recovery", "🔐 Admin Profile"])
-            
+                
             with tab_act:
                 active = run_query("SELECT email, name, role, package_type, expiry_date, license_key, owner_name, paid_amount FROM users WHERE approved=1 AND role != 'SuperAdmin' AND is_deleted=0")
                 if active:
                     st.dataframe(pd.DataFrame(active, columns=["Email", "Business Name", "Role", "Package", "Expiry", "License Key", "Owner", "Paid"]), use_container_width=True)
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        sel_mail = st.selectbox("Select Email to Resend License", [a[0] for a in active])
+                        if st.button("📧 Manual Resend Mail"):
+                            usr = [u for u in active if u[0] == sel_mail][0]
+                            if send_real_email(sel_mail, f"Your Kulu ERP {usr[3]} License (Resend)", f"Here is your requested License Key.\n🔑 License Key: {usr[5]}\n📅 Expiry Date: {usr[4]}\nAmount Paid: ₹{usr[7]}\n\nThanks,\nKulu Smart ERP"): st.success("✅ Email Sent!")
+                            else: st.error("❌ Failed to send email.")
+                    with c2:
+                        sel_del = st.selectbox("Select Email to Suspend / Delete", [a[0] for a in active])
+                        if st.button("🗑️ Suspend / Delete User"): 
+                            run_query("UPDATE users SET is_deleted=1 WHERE email=?", (sel_del,))
+                            st.success(f"User {sel_del} suspended successfully!"); st.rerun()
                 else: st.write("No active clients.")
                 
             with tab_set:
-                settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst, notice_text FROM admin_settings WHERE id=1")[0]
+                settings = run_query("SELECT upi_id, demo_price, monthly_price, six_month_price, yearly_price, lifetime_price, soft_gst, notice_text, home_banner FROM admin_settings WHERE id=1")[0]
+                if settings[8]:
+                    st.image(settings[8], use_container_width=True)
+                    if st.button("🗑️ Delete Home Banner"): run_query("UPDATE admin_settings SET home_banner=NULL WHERE id=1"); st.rerun()
+                new_banner = st.file_uploader("Upload New Home Banner", type=['jpg', 'png', 'jpeg'])
+                if new_banner and st.button("💾 Save New Banner"): run_query("UPDATE admin_settings SET home_banner=? WHERE id=1", (new_banner.read(),)); st.success("Banner updated!"); st.rerun()
+                
                 with st.form("price_settings"):
                     n_notice = st.text_input("📢 Notice Board Text", value=settings[7])
-                    c1, c2 = st.columns(2)
+                    c1, c2, c3 = st.columns(3)
                     with c1: n_upi = st.text_input("UPI ID", value=settings[0]); n_demo = st.number_input("Demo Price", value=float(settings[1]))
-                    with c2: n_mon = st.number_input("Monthly Price", value=float(settings[2]))
-                    if st.form_submit_button("Update Settings"):
-                        run_query("UPDATE admin_settings SET upi_id=?, demo_price=?, monthly_price=?, notice_text=? WHERE id=1", (n_upi, n_demo, n_mon, n_notice))
-                        st.success("✅ Updated!"); st.rerun()
+                    with c2: n_mon = st.number_input("Monthly Price", value=float(settings[2])); n_six = st.number_input("6 Months Price", value=float(settings[3]))
+                    with c3: n_yr = st.number_input("1 Year Price", value=float(settings[4])); n_life = st.number_input("Lifetime Price", value=float(settings[5])); n_gst = st.number_input("GST %", value=float(settings[6]))
+                    if st.form_submit_button("Update Prices"):
+                        run_query("UPDATE admin_settings SET upi_id=?, demo_price=?, monthly_price=?, six_month_price=?, yearly_price=?, lifetime_price=?, soft_gst=?, notice_text=? WHERE id=1", (n_upi, n_demo, n_mon, n_six, n_yr, n_life, n_gst, n_notice)); st.success("✅ Updated!"); st.rerun()
+
             with tab_rec:
-                st.info("No deleted accounts.")
+                del_users = run_query("SELECT email, name, role FROM users WHERE is_deleted=1 AND role != 'SuperAdmin'")
+                if del_users:
+                    for d_u in del_users:
+                        c1, c2, c3 = st.columns([2, 1, 1])
+                        c1.error(f"{d_u[1]} ({d_u[0]}) - Role: {d_u[2]}")
+                        if c2.button("♻️ Restore", key=f"res_{d_u[0]}"): 
+                            run_query("UPDATE users SET is_deleted=0 WHERE email=?", (d_u[0],))
+                            st.success("Account Restored!"); st.rerun()
+                        if c3.button("❌ Permanent Delete", key=f"pdel_{d_u[0]}"): 
+                            run_query("DELETE FROM users WHERE email=?", (d_u[0],))
+                            st.warning("Account Permanently Deleted!"); st.rerun()
+                else: st.info("No deleted accounts found in Recycle Bin.")
+
             with tab_prof:
-                st.info("Admin Profile Management")
+                st.subheader("🛡️ Admin Profile & Database Backup")
+                try:
+                    with open('kulu_erp_system.db', 'rb') as f:
+                        st.download_button("💾 Download Full Database Backup (.db)", f, file_name="kulu_erp_system_backup.db", type="primary")
+                except Exception as e:
+                    st.error("Backup file not found.")
+
+                curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
+                new_email = st.text_input("New Email ID", value=curr_admin[0])
+                new_pass = st.text_input("New Password (will be encrypted)", type="password")
+                if st.button("Update Profile"):
+                    new_hash = hash_pass(new_pass) if new_pass else curr_admin[2]
+                    run_query("UPDATE users SET email=?, password=? WHERE email=?", (new_email, new_hash, st.session_state.user_email))
+                    st.session_state.user_email = new_email; st.success("Updated!"); st.rerun()
 
         elif st.session_state.user_role == "MedWholesale":
             st.title(f"🏢 Medical Wholesale Portal ({st.session_state.user_email})")
@@ -416,7 +450,7 @@ else:
     # 🟢 DIRECT LOGIN (NO OTP)
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
-        st.title(f"🔐 {st.session_state.login_role} Login")
+        st.title(f"🔐 {st.session_state.login_role if st.session_state.login_role else ''} Login")
         l_email = st.text_input("Email Address (User ID)")
         l_pass = st.text_input("Secure Password", type="password")
         
@@ -424,7 +458,7 @@ else:
             hash_attempt = hash_pass(l_pass)
             user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email.strip().lower(), hash_attempt))
             if user:
-                if user[0][3] == 1: st.error("❌ Your account is Suspended.")
+                if user[0][3] == 1: st.error("❌ Your account is Suspended. Please contact Admin.")
                 else:
                     st.session_state.logged_in = True
                     st.session_state.user_role = user[0][1]
@@ -432,7 +466,7 @@ else:
                     st.rerun()
             else: st.error("Invalid Email or Password.")
 
-    # 🟢 FULL REGISTRATION FORM RESTORED (NO MISSING FIELDS)
+    # 🟢 FULL REGISTRATION FORM RESTORED (ALL FIELDS INTACT)
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🛒 Buy Kulu ERP License")
@@ -485,88 +519,101 @@ else:
                 else:
                     st.warning("⚠️ Please fill all required fields (Business Name, Email, Password, Mobile).")
 
-    # 🟢 PAYMENT & UTR SUBMIT (SAFE & ZERO ERROR)
+    # 🟢 PAYMENT & UTR SUBMIT -> SHOW SUCCESS -> CLICK 'DONE' TO GO DIRECTLY TO LOGIN
     elif st.session_state.current_page == "Payment":
-        d = st.session_state.reg_data
-        admin_set = run_query("SELECT upi_id FROM admin_settings WHERE id=1")[0]
-        admin_upi = admin_set[0] if admin_set[0] else "kulusutar@ybl"
-        
-        st.subheader("Step 3: Secure Payment")
-        st.write(f"Total Amount to Pay: **₹ {d['total_amt']:.2f}**")
-        
-        safe_name = urllib.parse.quote("Kulu Smart ERP")
-        upi_link = f"upi://pay?pa={admin_upi}&pn={safe_name}&am={d['total_amt']:.2f}&cu=INR"
-        qr_src = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={urllib.parse.quote(upi_link)}"
-        
-        st.markdown(f"""
-            <div style="text-align: center; background: #fff; padding: 20px; border-radius: 15px; border: 2px dashed #007bff; width: fit-content; margin: 0 auto 20px auto;">
-                <img src="{qr_src}" width="160" height="160" style="border-radius: 10px;">
-                <p style="margin-top: 10px; font-weight: bold; color: #333;">Scan & Pay via any UPI App</p>
-                <p style="color: #666; font-size: 14px;">UPI ID: <b>{admin_upi}</b></p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
-        if st.button("Submit & Verify UTR"):
-            if r_utr.strip():
-                with st.spinner("⏳ Verifying UTR & Generating License Key..."):
-                    time.sleep(2)
-                
-                new_key = generate_license()
-                days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
-                exp_days = days_map.get(d['pkg_name'], 30)
-                exp_date = str(date.today() + timedelta(days=exp_days))
-                hash_new_pass = hash_pass(d['pass'])
-                
-                # CRASH-PROOF DATABASE UPSERT WITH ALL FIELDS
-                existing = run_query("SELECT id FROM users WHERE email=?", (d['email'],))
-                if existing:
-                    run_query("""UPDATE users SET password=?, role=?, payment_status='Paid', approved=1, 
-                                 utr_no=?, paid_amount=?, package_type=?, license_key=?, expiry_date=?, 
-                                 key_entered=1, is_deleted=0, name=?, owner_name=?, mobile=?, aadhar=?, 
-                                 pan=?, address=?, state=? WHERE email=?""",
-                              (hash_new_pass, d['role'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date,
-                               d['name'], d['owner'], d['mobile'], d['aadhar'], d['pan'], d['address'], d['state'], d['email']))
-                else:
-                    run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, 
-                                 approved, utr_no, paid_amount, package_type, license_key, expiry_date, 
-                                 key_entered, mobile, aadhar, pan, address, state, is_deleted) 
-                                 VALUES (?, ?, ?, ?, ?, 'Paid', 1, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0)""",
-                              (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], r_utr, d['total_amt'],
-                               d['pkg_name'], new_key, exp_date, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
-                
-                # SEND EMAIL SAFELY
-                send_real_email(d['email'], "Your Kulu ERP License Key", 
-                                f"Hello {d['name']},\n\nPayment Verified Successfully!\n🔑 License Key: {new_key}\n📅 Valid Till: {exp_date}\n\nThanks,\nKulu Smart ERP")
-                
-                # STORE IN SESSION STATE TO SHOW ON SCREEN
-                st.session_state.payment_done = {
-                    "key": new_key,
-                    "exp": exp_date,
-                    "email": d['email']
-                }
-                st.rerun()
-            else:
-                st.error("⚠️ Please enter a valid 12-Digit UTR No.")
-                
-        # DISPLAY INSTANT SUCCESS CARD ONCE VERIFIED
+        # JADI PAYMENT SUCCESS HEISARICHI, TEBE KHALI SUCCESS SCREEN + 'DONE' BUTTON DEKHEIBA
         if "payment_done" in st.session_state:
             p_res = st.session_state.payment_done
             st.success("🎉 Payment Successfully Verified!")
             st.balloons()
             st.markdown(f"""
-                <div style="background: #e8f5e9; border: 2px solid #2e7d32; padding: 20px; border-radius: 12px; margin: 20px 0;">
-                    <h3 style="color: #2e7d32; margin-top:0;">✅ License Activated Instantly!</h3>
-                    <p><b>Registered Email:</b> {p_res['email']}</p>
-                    <p style="font-size: 20px;"><b>🔑 License Key:</b> <span style="background: #fff; padding: 4px 10px; border-radius: 5px; color: #d32f2f;">{p_res['key']}</span></p>
-                    <p><b>📅 Valid Till:</b> {p_res['exp']}</p>
-                    <p style="font-size: 13px; color: #555;">(A copy has also been sent to your email inbox)</p>
+                <div style="background: #e8f5e9; border: 2px solid #2e7d32; padding: 25px; border-radius: 15px; margin: 25px 0; text-align: center;">
+                    <h2 style="color: #2e7d32; margin-top:0;">✅ Payment Successful & License Activated!</h2>
+                    <p style="font-size: 16px;"><b>Registered Business:</b> {p_res['name']}</p>
+                    <p style="font-size: 16px;"><b>Login Email:</b> {p_res['email']}</p>
+                    <div style="background: #fff; display: inline-block; padding: 12px 25px; border-radius: 8px; border: 2px dashed #d32f2f; margin: 15px 0;">
+                        <span style="font-size: 14px; color: #555;">YOUR LICENSE KEY:</span><br>
+                        <span style="font-size: 24px; font-weight: bold; color: #d32f2f;">{p_res['key']}</span>
+                    </div>
+                    <p style="font-size: 15px;"><b>📅 License Valid Till:</b> {p_res['exp']}</p>
+                    <p style="font-size: 13px; color: #666;">(A confirmation email with your license key has also been dispatched)</p>
                 </div>
             """, unsafe_allow_html=True)
-            if st.button("➡️ Go to Login Page Now", type="primary"):
+            
+            # 🟢 DONE BUTTON: QLIK KALE DIRECT LOGIN SCREEN KU NEI ASIBA 🟢
+            if st.button("✅ Done (Go to Login)", type="primary", use_container_width=True):
+                # Clean up session and go straight to login
+                target_role = p_res.get('role', 'Shop')
                 del st.session_state.payment_done
+                if "reg_data" in st.session_state:
+                    del st.session_state.reg_data
+                st.session_state.login_role = target_role
                 st.session_state.current_page = "Login"
                 st.rerun()
+
+        # JADI PAYMENT HEINAHI, TEBE QR CODE AU UTR SUBMIT FORM DEKHEIBA
+        else:
+            d = st.session_state.reg_data
+            admin_set = run_query("SELECT upi_id FROM admin_settings WHERE id=1")[0]
+            admin_upi = admin_set[0] if admin_set[0] else "kulusutar@ybl"
+            
+            st.subheader("Step 3: Secure Payment")
+            st.write(f"Total Amount to Pay: **₹ {d['total_amt']:.2f}**")
+            
+            safe_name = urllib.parse.quote("Kulu Smart ERP")
+            upi_link = f"upi://pay?pa={admin_upi}&pn={safe_name}&am={d['total_amt']:.2f}&cu=INR"
+            qr_src = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={urllib.parse.quote(upi_link)}"
+            
+            st.markdown(f"""
+                <div style="text-align: center; background: #fff; padding: 20px; border-radius: 15px; border: 2px dashed #007bff; width: fit-content; margin: 0 auto 20px auto;">
+                    <img src="{qr_src}" width="160" height="160" style="border-radius: 10px;">
+                    <p style="margin-top: 10px; font-weight: bold; color: #333;">Scan & Pay via any UPI App</p>
+                    <p style="color: #666; font-size: 14px;">UPI ID: <b>{admin_upi}</b></p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
+            if st.button("Submit & Verify UTR", type="primary", use_container_width=True):
+                if r_utr.strip():
+                    with st.spinner("⏳ Verifying UTR & Activating License..."):
+                        time.sleep(2)
+                    
+                    new_key = generate_license()
+                    days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
+                    exp_days = days_map.get(d['pkg_name'], 30)
+                    exp_date = str(date.today() + timedelta(days=exp_days))
+                    hash_new_pass = hash_pass(d['pass'])
+                    
+                    # DATABASE UPSERT
+                    existing = run_query("SELECT id FROM users WHERE email=?", (d['email'],))
+                    if existing:
+                        run_query("""UPDATE users SET password=?, role=?, payment_status='Paid', approved=1, 
+                                     utr_no=?, paid_amount=?, package_type=?, license_key=?, expiry_date=?, 
+                                     key_entered=1, is_deleted=0, name=?, owner_name=?, mobile=?, aadhar=?, 
+                                     pan=?, address=?, state=? WHERE email=?""",
+                                  (hash_new_pass, d['role'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date,
+                                   d['name'], d['owner'], d['mobile'], d['aadhar'], d['pan'], d['address'], d['state'], d['email']))
+                    else:
+                        run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, 
+                                     approved, utr_no, paid_amount, package_type, license_key, expiry_date, 
+                                     key_entered, mobile, aadhar, pan, address, state, is_deleted) 
+                                     VALUES (?, ?, ?, ?, ?, 'Paid', 1, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0)""",
+                                  (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], r_utr, d['total_amt'],
+                                   d['pkg_name'], new_key, exp_date, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
+                    
+                    send_real_email(d['email'], "Your Kulu ERP License Key", 
+                                    f"Hello {d['name']},\n\nPayment Verified Successfully!\n🔑 License Key: {new_key}\n📅 Valid Till: {exp_date}\n\nThanks,\nKulu Smart ERP")
+                    
+                    st.session_state.payment_done = {
+                        "name": d['name'],
+                        "key": new_key,
+                        "exp": exp_date,
+                        "email": d['email'],
+                        "role": d['role']
+                    }
+                    st.rerun()
+                else:
+                    st.error("⚠️ Please enter a valid 12-Digit UTR No.")
 
     elif st.session_state.current_page == "Forgot Password":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()

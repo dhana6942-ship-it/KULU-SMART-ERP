@@ -34,26 +34,29 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (OLD TABLES SAFE + 2 NEW MEDICAL TABLES)
+# 1. DATABASE SETUP (TOTAL 7 TABLES - 100% SAFE)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
     conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     
-    # 1. Users Table (Old)
+    # Table 1: Users
     c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
     
-    # 2. Admin Settings Table (Old)
+    # Table 2: Admin Settings
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     
-    # 3. Inventory Table (Old)
+    # Table 3: General / Grocery Inventory
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
     
-    # 4. Transactions Table (Old)
+    # Table 4: Transactions Ledger
     c.execute('''CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
+    
+    # Table 5: Store Profiles
+    c.execute('''CREATE TABLE IF NOT EXISTS store_profiles (id INTEGER PRIMARY KEY, shop_email TEXT UNIQUE, shop_name TEXT, contact_person TEXT, phone TEXT, address TEXT)''')
 
-    # 5. NEW TABLE 1: Medical Wholesaler
+    # Table 6: Medicine Wholesale Table
     c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         shop_email TEXT,
@@ -68,7 +71,7 @@ def init_db():
         updated_date TEXT
     )''')
 
-    # 6. NEW TABLE 2: Medical Store
+    # Table 7: Medicine Store Table
     c.execute('''CREATE TABLE IF NOT EXISTS medical_store (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         shop_email TEXT,
@@ -244,10 +247,56 @@ if "login_role" not in st.session_state: st.session_state.login_role = None
 
 INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"]
 
+# ==========================================
+# 3. LOGGED IN PORTAL WORKFLOW
+# ==========================================
 if st.session_state.logged_in:
+    # 🟢 TOP BAR / HEADER WITH DIRECT HOME & LOGOUT BUTTONS 🟢
+    head_c1, head_c2, head_c3 = st.columns([6, 2, 2])
+    with head_c1:
+        st.markdown(f"#### 👤 Logged in as: **{st.session_state.user_email}** ({st.session_state.user_role})")
+    with head_c2:
+        # HOME PAGE SYMBOL BUTTON
+        if st.button("🏠 Home Page", key="top_home_btn", use_container_width=True):
+            st.session_state.current_page = "Home Ground"
+            st.session_state.logged_in = False
+            st.session_state.user_email = None
+            st.session_state.user_role = None
+            st.rerun()
+    with head_c3:
+        # LOGOUT BUTTON
+        if st.button("🚪 Logout", key="top_logout_btn", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.user_email = None
+            st.session_state.user_role = None
+            st.session_state.current_page = "Home Ground"
+            st.rerun()
+
+    st.markdown("---")
+
+    # SIDEBAR OPTIONS
+    st.sidebar.markdown(f"### ⚙️ {st.session_state.user_role} Portal")
+    if st.sidebar.button("🏠 Go to Home Ground", use_container_width=True):
+        st.session_state.current_page = "Home Ground"
+        st.session_state.logged_in = False
+        st.session_state.user_email = None
+        st.session_state.user_role = None
+        st.rerun()
+    if st.sidebar.button("🚪 Direct Logout", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.user_email = None
+        st.session_state.user_role = None
+        st.session_state.current_page = "Home Ground"
+        st.rerun()
+
+    st.sidebar.markdown("---")
     menu = st.sidebar.radio("Navigation", ["Gateway of ERP", "Logout"])
     if menu == "Logout":
-        st.session_state.logged_in = False; st.session_state.user_email = None; st.session_state.user_role = None; st.session_state.current_page = "Home Ground"; st.rerun()
+        st.session_state.logged_in = False
+        st.session_state.user_email = None
+        st.session_state.user_role = None
+        st.session_state.current_page = "Home Ground"
+        st.rerun()
         
     elif menu == "Gateway of ERP":
         if st.session_state.user_role == "SuperAdmin":
@@ -331,7 +380,7 @@ if st.session_state.logged_in:
                 if shop_photo: st.image(shop_photo, width=80)
                 st.info(f"Valid Till: {exp_date}")
                 
-            tab_med_entry, tab_med_stock, tab_med_pos = st.tabs(["📥 Add Wholesale Medicine", "📦 Wholesale Stock Register", "🧾 Wholesale Billing"])
+            tab_med_entry, tab_med_stock = st.tabs(["📥 Add Wholesale Medicine", "📦 Wholesale Stock Register"])
             
             with tab_med_entry:
                 st.subheader("Add / Purchase Wholesale Medicine (Boxes/Cartons)")
@@ -358,10 +407,6 @@ if st.session_state.logged_in:
                     st.dataframe(pd.DataFrame(mw_data, columns=["Medicine Name", "Boxes In Stock", "Strips / Box", "Tablets / Strip", "Buy / Box (₹)", "Sell / Box (₹)", "GST %"]), use_container_width=True)
                 else:
                     st.info("No wholesale medicines in stock yet.")
-                    
-            with tab_med_pos:
-                st.subheader("🧾 Wholesale B2B Billing (Box Wise)")
-                st.info("Direct Wholesale Billing from medical_wholesaler table.")
 
         # ==============================================================
         # 🟢 MEDICINE STORE DASHBOARD (USES medical_store TABLE)
@@ -376,7 +421,7 @@ if st.session_state.logged_in:
                 if shop_photo: st.image(shop_photo, width=80)
                 st.info(f"Valid Till: {exp_date}")
                 
-            tab_st_entry, tab_st_stock, tab_st_pos = st.tabs(["📥 Add Store Medicine", "📦 Pharmacy Stock Register", "🧾 Counter POS (Strips & Tablets)"])
+            tab_st_entry, tab_st_stock = st.tabs(["📥 Add Store Medicine", "📦 Pharmacy Stock Register"])
             
             with tab_st_entry:
                 st.subheader("Add Medicine to Store (Strips / Tablets)")
@@ -402,10 +447,6 @@ if st.session_state.logged_in:
                     st.dataframe(pd.DataFrame(ms_data, columns=["Medicine Name", "Strips In Stock", "Tablets / Strip", "Buy / Strip (₹)", "Sell / Strip (₹)", "GST %"]), use_container_width=True)
                 else:
                     st.info("No store medicines in stock yet.")
-                    
-            with tab_st_pos:
-                st.subheader("🧾 Counter Medicine Billing (Strip & Tablet Calculation)")
-                st.info("Sell full strips or individual tablet pieces with live deduction from medical_store.")
 
         # ==============================================================
         # 🟢 ORIGINAL WHOLESALER & SHOP (GROCERY/GENERAL - 100% UNTOUCHED)
@@ -601,10 +642,11 @@ if st.session_state.logged_in:
                     with c2: raw_gst = st.text_input("Shop GST No.", value=shop_gst if shop_gst else ""); new_gst = str(raw_gst).strip().upper()
                     if st.form_submit_button("💾 Save Settings"): run_query("UPDATE users SET upi_id=?, gst=? WHERE email=?", (new_upi, new_gst, st.session_state.user_email)); st.success("✅ Profile Updated!"); st.rerun()
 
+# ==========================================
+# 4. HOME GROUND & LOGIN/REGISTER (NO OTP)
+# ==========================================
 else:
-    # ==============================================================
     # 🟢 HOME GROUND (TOTAL 7 BUTTONS) 🟢
-    # ==============================================================
     if st.session_state.current_page == "Home Ground":
         settings = run_query("SELECT notice_text, home_banner FROM admin_settings WHERE id=1")[0]
         st.markdown(f"""<div class="notice-board"><marquee behavior="scroll" direction="left" scrollamount="8">📢 {str(settings[0]).upper() if settings[0] else "WELCOME TO KULU SMART ERP!"}</marquee></div>""", unsafe_allow_html=True)
@@ -686,12 +728,11 @@ else:
                 user = run_query("SELECT name, role, approved, is_deleted FROM users WHERE email=? AND password=?", (l_email, hash_attempt))
                 if user:
                     if user[0][3] == 1: st.error("❌ Your account is Suspended.")
-                    elif user[0][1] == st.session_state.login_role:
+                    else:
                         st.session_state.logged_in = True
                         st.session_state.user_role = user[0][1]
                         st.session_state.user_email = l_email
                         st.rerun()
-                    else: st.error("❌ Role Mismatch.")
                 else: st.error("Invalid Email or Password.")
         with c_l2:
             if st.button("🔑 Forgot Password?"):
@@ -714,7 +755,7 @@ else:
             raw_r_name = st.text_input("Business Name"); r_name = str(raw_r_name).strip().upper()
             raw_r_owner = st.text_input("Owner Name"); r_owner = str(raw_r_owner).strip().upper()
             r_mob = st.text_input("Mobile Number")
-            r_email = st.text_input("Email ID (This will be your Login ID)")
+            r_email = st.text_input("Email ID (Login ID)")
             r_pass = st.text_input("Password", type="password")
             
             c1, c2 = st.columns(2)

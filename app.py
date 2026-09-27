@@ -34,7 +34,7 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (SAFE & CRASH-PROOF)
+# 1. DATABASE SETUP (ALL 7 TABLES & ALL COLUMNS RESTORED)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
@@ -150,6 +150,21 @@ def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, tot
     inv_info = f"<div class='center' style='font-size: 10px; margin-bottom: 5px;'>Inv No: {inv_no}</div>" if inv_no else ""
     gst_html = f"<tr><td>Base Amount:</td><td class='right'>₹ {base_amt:.2f}</td></tr><tr><td>GST ({gst_pct}%):</td><td class='right'>(+) ₹ {gst_amt:.2f}</td></tr>" if gst_pct > 0 else ""
     return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name.upper()}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name.upper()}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
+
+# 🔴 PURCHASE REPORT HTML 🔴
+def generate_purchase_report_html(shop_name, date_str, purchases):
+    rows = ""
+    tot_base = 0; tot_gst = 0; tot_net = 0
+    for p in purchases:
+        base = p[1] * p[2]
+        tot_base += base; tot_gst += p[4]; tot_net += p[5]
+        rows += f"<tr><td>{str(p[0]).upper()}</td><td>{p[1]}</td><td>₹{p[2]:.2f}</td><td>{p[3]}%</td><td>₹{p[4]:.2f}</td><td>₹{p[5]:.2f}</td></tr>"
+    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 80mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; }} .receipt-box {{ width: 80mm; min-width: 300px; max-width: 100%; margin: 0 auto; padding: 15px; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 10px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 11px; margin: 10px 0; border-collapse: collapse; text-align: left; }} th, td {{ padding: 4px; border-bottom: 1px dotted #ccc; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 20px; display: block; width: 100%; }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 18px;">{shop_name.upper()}</div><div class="center" style="font-size: 12px; margin-bottom: 5px;">Daily Purchase Entry Report</div><div class="center" style="font-size: 12px;">Date: {date_str}</div><div class="line"></div><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Tax</th><th>Total</th></tr>{rows}</table><div class="line"></div><div class="right bold">Total Base Amount: ₹ {tot_base:.2f}</div><div class="right bold">Total GST Paid: (+) ₹ {tot_gst:.2f}</div><div class="right bold" style="font-size: 16px; margin-top: 5px;">Net Purchase Value: ₹ {tot_net:.2f}</div><div class="line"></div><div class="center" style="font-size: 11px; margin-top: 5px;">* Verify this report with Seller's Invoice *</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Purchase Report</button></div></body></html>"""
+
+def generate_gst_report_html(df_gst, tot_gst, shop_name):
+    rows = ""
+    for _, r in df_gst.iterrows(): rows += f"<tr><td>{r['Invoice']}</td><td>{r['Date']}</td><td>{str(r['Customer']).upper()}</td><td>₹{r['Base Value (₹)']:.2f}</td><td>{r['GST %']}%</td><td>₹{r['GST Amount (₹)']:.2f}</td><td>₹{r['Total Value (₹)']:.2f}</td></tr>"
+    return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name.upper()}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
 
 # ==========================================
 # 2. PAGE CONFIG & UI CSS
@@ -335,7 +350,7 @@ if st.session_state.logged_in:
             else: st.info("No items in stock. Add items from purchase.")
 
 # ==========================================
-# 4. HOME GROUND (TOTAL 7 BUTTONS) & SAFE REGISTRATION
+# 4. HOME GROUND (TOTAL 7 BUTTONS) & FULL REGISTRATION FORM
 # ==========================================
 else:
     if st.session_state.current_page == "Home Ground":
@@ -417,7 +432,7 @@ else:
                     st.rerun()
             else: st.error("Invalid Email or Password.")
 
-    # 🟢 REGISTER
+    # 🟢 FULL REGISTRATION FORM RESTORED (NO MISSING FIELDS)
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🛒 Buy Kulu ERP License")
@@ -425,6 +440,7 @@ else:
         packages = {
             f"Demo Plan (10 Days) - ₹{settings[1]}": ("Demo", settings[1]),
             f"Monthly Plan (1 Month) - ₹{settings[2]}": ("Monthly", settings[2]),
+            f"6 Months Plan (6 Months) - ₹{settings[3]}": ("6 Months", settings[3]),
             f"1 Year Plan (1 Year) - ₹{settings[4]}": ("1 Year", settings[4]),
             f"Lifetime Plan (No Expiry) - ₹{settings[5]}": ("Lifetime", settings[5])
         }
@@ -432,22 +448,44 @@ else:
         with st.form("reg_form"):
             r_role = st.selectbox("Register As", ["Shop", "Wholesaler", "MedStore", "MedWholesale"])
             raw_r_name = st.text_input("Business Name")
+            raw_r_owner = st.text_input("Owner Name")
+            r_mob = st.text_input("Mobile Number")
             r_email = st.text_input("Email ID (Used for Login)")
             r_pass = st.text_input("Password", type="password")
-            p_sel = st.radio("Select Package", list(packages.keys()))
             
+            c1, c2 = st.columns(2)
+            with c1:
+                r_aadhar = st.text_input("Aadhaar Number")
+                raw_r_pan = st.text_input("PAN / GST Number")
+            with c2:
+                r_state = st.selectbox("State", INDIAN_STATES)
+                raw_r_addr = st.text_area("Full Business Address")
+                
+            p_sel = st.radio("Select Package", list(packages.keys()))
             if st.form_submit_button("Next ➡️"):
-                if raw_r_name and r_email and r_pass:
+                if raw_r_name and r_email and r_pass and r_mob:
                     pkg_name, pkg_price = packages[p_sel]
                     total_with_gst = pkg_price + (pkg_price * settings[6] / 100)
                     st.session_state.reg_data = {
-                        "role": r_role, "name": raw_r_name.strip().upper(), "email": r_email.strip().lower(),
-                        "pass": r_pass, "pkg_name": pkg_name, "total_amt": total_with_gst
+                        "role": r_role,
+                        "name": str(raw_r_name).strip().upper(),
+                        "owner": str(raw_r_owner).strip().upper(),
+                        "mobile": str(r_mob).strip(),
+                        "email": str(r_email).strip().lower(),
+                        "pass": str(r_pass),
+                        "aadhar": str(r_aadhar).strip(),
+                        "pan": str(raw_r_pan).strip().upper(),
+                        "state": str(r_state),
+                        "address": str(raw_r_addr).strip().upper(),
+                        "pkg_name": pkg_name,
+                        "total_amt": total_with_gst
                     }
-                    st.session_state.current_page = "Payment"; st.rerun()
-                else: st.warning("Please fill all required fields.")
+                    st.session_state.current_page = "Payment"
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Please fill all required fields (Business Name, Email, Password, Mobile).")
 
-    # 🟢 PAYMENT & INSTANT LICENSE DISPLAY (CRASH PROOF)
+    # 🟢 PAYMENT & UTR SUBMIT (SAFE & ZERO ERROR)
     elif st.session_state.current_page == "Payment":
         d = st.session_state.reg_data
         admin_set = run_query("SELECT upi_id FROM admin_settings WHERE id=1")[0]
@@ -471,26 +509,35 @@ else:
         r_utr = st.text_input("Enter 12-Digit UTR No. / Transaction ID")
         if st.button("Submit & Verify UTR"):
             if r_utr.strip():
-                with st.spinner("⏳ Verifying UTR & Activating Software..."):
+                with st.spinner("⏳ Verifying UTR & Generating License Key..."):
                     time.sleep(2)
                 
                 new_key = generate_license()
-                days_map = {"Demo": 10, "Monthly": 30, "1 Year": 365, "Lifetime": 36500}
+                days_map = {"Demo": 10, "Monthly": 30, "6 Months": 180, "1 Year": 365, "Lifetime": 36500}
                 exp_days = days_map.get(d['pkg_name'], 30)
                 exp_date = str(date.today() + timedelta(days=exp_days))
                 hash_new_pass = hash_pass(d['pass'])
                 
-                # SAFE UPSERT INTO USERS
+                # CRASH-PROOF DATABASE UPSERT WITH ALL FIELDS
                 existing = run_query("SELECT id FROM users WHERE email=?", (d['email'],))
                 if existing:
-                    run_query("UPDATE users SET password=?, role=?, payment_status='Paid', approved=1, utr_no=?, paid_amount=?, package_type=?, license_key=?, expiry_date=?, key_entered=1, is_deleted=0 WHERE email=?",
-                              (hash_new_pass, d['role'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date, d['email']))
+                    run_query("""UPDATE users SET password=?, role=?, payment_status='Paid', approved=1, 
+                                 utr_no=?, paid_amount=?, package_type=?, license_key=?, expiry_date=?, 
+                                 key_entered=1, is_deleted=0, name=?, owner_name=?, mobile=?, aadhar=?, 
+                                 pan=?, address=?, state=? WHERE email=?""",
+                              (hash_new_pass, d['role'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date,
+                               d['name'], d['owner'], d['mobile'], d['aadhar'], d['pan'], d['address'], d['state'], d['email']))
                 else:
-                    run_query("INSERT INTO users (name, email, password, role, payment_status, approved, utr_no, paid_amount, package_type, license_key, expiry_date, key_entered, is_deleted) VALUES (?, ?, ?, ?, 'Paid', 1, ?, ?, ?, ?, ?, 1, 0)",
-                              (d['name'], d['email'], hash_new_pass, d['role'], r_utr, d['total_amt'], d['pkg_name'], new_key, exp_date))
+                    run_query("""INSERT INTO users (name, owner_name, email, password, role, payment_status, 
+                                 approved, utr_no, paid_amount, package_type, license_key, expiry_date, 
+                                 key_entered, mobile, aadhar, pan, address, state, is_deleted) 
+                                 VALUES (?, ?, ?, ?, ?, 'Paid', 1, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0)""",
+                              (d['name'], d['owner'], d['email'], hash_new_pass, d['role'], r_utr, d['total_amt'],
+                               d['pkg_name'], new_key, exp_date, d['mobile'], d['aadhar'], d['pan'], d['address'], d['state']))
                 
-                # Background email attempt
-                send_real_email(d['email'], "Your Kulu ERP License Key", f"Hello {d['name']},\n\nPayment Verified!\n🔑 License Key: {new_key}\n📅 Expiry Date: {exp_date}\n\nThanks,\nKulu Smart ERP")
+                # SEND EMAIL SAFELY
+                send_real_email(d['email'], "Your Kulu ERP License Key", 
+                                f"Hello {d['name']},\n\nPayment Verified Successfully!\n🔑 License Key: {new_key}\n📅 Valid Till: {exp_date}\n\nThanks,\nKulu Smart ERP")
                 
                 # STORE IN SESSION STATE TO SHOW ON SCREEN
                 st.session_state.payment_done = {

@@ -12,7 +12,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ==========================================
-# 0. SECURITY & EMAIL SYSTEM
+# 0. SECURITY & DUAL-PORT EMAIL SYSTEM
 # ==========================================
 def hash_pass(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
@@ -24,17 +24,28 @@ def send_real_email(receiver_email, subject, body_text):
     msg['Subject'] = subject
     msg['From'] = f"Kulu Smart ERP <{sender_email}>"
     msg['To'] = receiver_email
+    
     try:
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=8)
         server.login(sender_email, app_password)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
+    except Exception:
+        pass
+        
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=8)
+        server.starttls()
+        server.login(sender_email, app_password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception:
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (TOTAL 7 TABLES)
+# 1. DATABASE SETUP (7 TABLES - ZERO DATA LOSS)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
@@ -47,7 +58,7 @@ def init_db():
     # 2. Admin Settings Table
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     
-    # 3. Inventory Table
+    # 3. Inventory Table (Grocery / General)
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
     
     # 4. Transactions Table
@@ -57,52 +68,51 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS store_profiles (id INTEGER PRIMARY KEY, shop_email TEXT UNIQUE, shop_name TEXT, contact_person TEXT, phone TEXT, address TEXT)''')
 
     # 6. Medical Wholesaler Table
-    c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        shop_email TEXT,
-        item_name TEXT,
-        box_count INTEGER,
-        strips_per_box INTEGER,
-        tablets_per_strip INTEGER,
-        purchase_price_box REAL,
-        selling_price_box REAL,
-        gst_rate REAL,
-        barcode TEXT,
-        updated_date TEXT
-    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
 
     # 7. Medical Store Table
-    c.execute('''CREATE TABLE IF NOT EXISTS medical_store (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        shop_email TEXT,
-        item_name TEXT,
-        strips_count INTEGER,
-        tablets_per_strip INTEGER,
-        purchase_price_strip REAL,
-        selling_price_strip REAL,
-        gst_rate REAL,
-        barcode TEXT,
-        updated_date TEXT
-    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
     
-    cols_to_add = [
+    # Users Columns Auto-Add
+    user_cols = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
         ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
         ("upi_id", "TEXT"), ("owner_name", "TEXT"), ("pan_gst_no", "TEXT"), ("address", "TEXT"), ("state", "TEXT"),
         ("aadhar", "TEXT"), ("pan", "TEXT"), ("gst", "TEXT"), ("mobile", "TEXT")
     ]
-    for col, dtype in cols_to_add:
+    for col, dtype in user_cols:
         try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
         except: pass 
         
-    admin_cols_to_add = [
+    admin_cols = [
         ("demo_price", "REAL DEFAULT 99.0"), ("monthly_price", "REAL DEFAULT 499.0"), 
         ("six_month_price", "REAL DEFAULT 2499.0"), ("yearly_price", "REAL DEFAULT 4999.0"), 
         ("lifetime_price", "REAL DEFAULT 9999.0"), ("notice_text", "TEXT DEFAULT 'WELCOME TO KULU SMART ERP! PREMIUM POS SOFTWARE.'"), 
         ("home_banner", "BLOB")
     ]
-    for col, dtype in admin_cols_to_add:
+    for col, dtype in admin_cols:
         try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
+        except: pass
+
+    # Medical Wholesaler Columns
+    mw_cols = [
+        ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
+        ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0.0"),
+        ("selling_price_box", "REAL DEFAULT 0.0"), ("gst_rate", "REAL DEFAULT 0.0"),
+        ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
+    ]
+    for col, dtype in mw_cols:
+        try: c.execute(f"ALTER TABLE medical_wholesaler ADD COLUMN {col} {dtype}")
+        except: pass
+
+    # Medical Store Columns
+    ms_cols = [
+        ("strips_count", "REAL DEFAULT 0.0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
+        ("purchase_price_strip", "REAL DEFAULT 0.0"), ("selling_price_strip", "REAL DEFAULT 0.0"),
+        ("gst_rate", "REAL DEFAULT 0.0"), ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
+    ]
+    for col, dtype in ms_cols:
+        try: c.execute(f"ALTER TABLE medical_store ADD COLUMN {col} {dtype}")
         except: pass
 
     try: c.execute("ALTER TABLE inventory ADD COLUMN barcode TEXT")
@@ -138,18 +148,7 @@ def run_query(query, params=()):
 
 def generate_license(): return "KULU-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
-# 🔴 SALES RECEIPT HTML 🔴
-def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, total_price, date_str, shop_upi="", cust_name="", cust_mob="", inv_no="", base_amt=0):
-    qr_html = ""
-    if shop_upi:
-        safe_shop_name = urllib.parse.quote(shop_name)
-        upi_url = f"upi://pay?pa={shop_upi}&pn={safe_shop_name}&am={total_price:.2f}&cu=INR"
-        qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={urllib.parse.quote(upi_url)}"
-        qr_html = f"""<div class="center" style="margin-top: 15px;"><img src="{qr_img_src}" alt="Scan to Pay" width="90" height="90" style="border: 2px solid #000; padding: 2px;"><div style="font-size: 11px; font-weight: bold; margin-top: 5px;">Scan to Pay ₹ {total_price:.2f}</div></div>"""
-    cust_info = f"""<div class="line"></div><div style="font-size: 11px; margin-bottom: 5px;"><b>Customer:</b> {cust_name.upper()}<br><b>Mob:</b> {cust_mob}</div>""" if cust_name or cust_mob else ""
-    inv_info = f"<div class='center' style='font-size: 10px; margin-bottom: 5px;'>Inv No: {inv_no}</div>" if inv_no else ""
-    gst_html = f"<tr><td>Base Amount:</td><td class='right'>₹ {base_amt:.2f}</td></tr><tr><td>GST ({gst_pct}%):</td><td class='right'>(+) ₹ {gst_amt:.2f}</td></tr>" if gst_pct > 0 else ""
-    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name.upper()}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name.upper()}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
+GST_SLABS = {"No GST (0%)": 0.0, "5% GST": 5.0, "12% GST": 12.0, "18% GST": 18.0, "28% GST": 28.0}
 
 # ==========================================
 # 2. PAGE CONFIG & UI CSS
@@ -197,7 +196,7 @@ st.markdown("""
     .border-shop { border-top: 8px solid #11998e; }
     .border-med-ws { border-top: 8px solid #9c27b0; }
     .border-med-st { border-top: 8px solid #ff9800; }
-    .card-icon { font-size: 65px; margin-bottom: 20px; filter: drop-shadow(3px 5px 8px rgba(0,0,0,0.15)); transition: transform 0.3s ease; }
+    .card-icon { font-size: 65px; margin-bottom: 20px; filter: drop-shadow(3px 5px 8px rgba(0,0,0,0.15)); }
     .card-title { font-size: 24px; font-weight: 800; color: #1a1a1a; margin-bottom: 12px; text-transform: uppercase;}
     .card-text { font-size: 15px; color: #555; line-height: 1.6; font-weight: 500; margin-bottom: 20px; }
     .register-section { 
@@ -282,8 +281,8 @@ if st.session_state.logged_in:
                         sel_mail = st.selectbox("Select Email to Resend License", [a[0] for a in active])
                         if st.button("📧 Manual Resend Mail"):
                             usr = [u for u in active if u[0] == sel_mail][0]
-                            if send_real_email(sel_mail, f"Your Kulu ERP {usr[3]} License (Resend)", f"Here is your requested License Key.\n🔑 License Key: {usr[5]}\n📅 Expiry Date: {usr[4]}\nAmount Paid: ₹{usr[7]}\n\nThanks,\nKulu Smart ERP"): st.success("✅ Email Sent!")
-                            else: st.error("❌ Failed to send email.")
+                            if send_real_email(sel_mail, f"Your Kulu ERP {usr[3]} License (Resend)", f"Here is your License Key.\n🔑 License Key: {usr[5]}\n📅 Expiry Date: {usr[4]}\nAmount Paid: ₹{usr[7]}\n\nThanks,\nKulu Smart ERP"): st.success("✅ Email Sent!")
+                            else: st.error("❌ Email failed.")
                     with c2:
                         sel_del = st.selectbox("Select Email to Suspend / Delete", [a[0] for a in active])
                         if st.button("🗑️ Suspend / Delete User"): 
@@ -320,7 +319,7 @@ if st.session_state.logged_in:
                         if c3.button("❌ Permanent Delete", key=f"pdel_{d_u[0]}"): 
                             run_query("DELETE FROM users WHERE email=?", (d_u[0],))
                             st.warning("Account Permanently Deleted!"); st.rerun()
-                else: st.info("No deleted accounts found in Recycle Bin.")
+                else: st.info("No deleted accounts in Recycle Bin.")
 
             with tab_prof:
                 st.subheader("🛡️ Admin Profile & Database Backup")
@@ -330,61 +329,173 @@ if st.session_state.logged_in:
                 except Exception as e:
                     st.error("Backup file not found.")
 
-                curr_admin = run_query("SELECT email, mobile, password FROM users WHERE email=?", (st.session_state.user_email,))[0]
-                new_email = st.text_input("New Email ID", value=curr_admin[0])
-                new_pass = st.text_input("New Password (will be encrypted)", type="password")
-                if st.button("Update Profile"):
-                    new_hash = hash_pass(new_pass) if new_pass else curr_admin[2]
-                    run_query("UPDATE users SET email=?, password=? WHERE email=?", (new_email, new_hash, st.session_state.user_email))
-                    st.session_state.user_email = new_email; st.success("Updated!"); st.rerun()
-
+        # 🏢 MEDICAL WHOLESALER PORTAL (BOX -> STRIP -> TABLET & GST)
         elif st.session_state.user_role == "MedWholesale":
-            st.title(f"🏢 Medical Wholesale Portal ({st.session_state.user_email})")
-            tab_add, tab_view = st.tabs(["📥 Add Wholesale Medicine", "📦 Live Stock"])
-            with tab_add:
-                with st.form("med_ws_form"):
-                    m_name = st.text_input("Medicine Name")
-                    m_box = st.number_input("Boxes Count", min_value=1, value=10)
-                    m_spb = st.number_input("Strips Per Box", min_value=1, value=200)
-                    m_p_box = st.number_input("Buy Rate / Box (₹)", min_value=0.0, value=1000.0)
-                    m_s_box = st.number_input("Sell Rate / Box (₹)", min_value=0.0, value=1200.0)
-                    if st.form_submit_button("Save Wholesale Medicine"):
-                        if m_name:
+            my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved, state FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved, shop_state = my_data
+            
+            c1, c2 = st.columns([3, 1])
+            with c1: st.markdown(f'<h2>🏢 Medical Wholesale Portal - {shop_name.upper()}</h2>', unsafe_allow_html=True)
+            with c2: 
+                if shop_photo: st.image(shop_photo, width=80)
+                st.info(f"Valid Till: {exp_date}")
+                
+            tab_med_entry, tab_med_stock, tab_med_sales = st.tabs(["📥 Purchase (Add Medicine)", "📦 Wholesale Stock Register", "🧾 Wholesale Sales POS"])
+            
+            with tab_med_entry:
+                st.subheader("📥 Wholesale Medicine Purchase Order (Box & Strip Calculation)")
+                with st.form("med_ws_new_form"):
+                    mw_name = st.text_input("Medicine Name")
+                    c1, c2, c3 = st.columns(3)
+                    with c1: mw_boxes = st.number_input("Total Boxes", min_value=1, value=10)
+                    with c2: mw_spb = st.number_input("Strips per Box", min_value=1, value=200)
+                    with c3: mw_tps = st.number_input("Tablets per Strip", min_value=1, value=10)
+                    
+                    c4, c5, c6 = st.columns(3)
+                    with c4: mw_p_box = st.number_input("Buy Rate per Box (₹)", min_value=0.0, value=1000.0)
+                    with c5: mw_s_box = st.number_input("Sell Rate per Box (₹)", min_value=0.0, value=1200.0)
+                    with c6: mw_gst_sel = st.selectbox("GST Option", list(GST_SLABS.keys()), key="ws_gst_p")
+                    
+                    if st.form_submit_button("💾 Save Wholesale Purchase"):
+                        if mw_name:
+                            p_gst = GST_SLABS[mw_gst_sel]
                             run_query("INSERT INTO medical_wholesaler (shop_email, item_name, box_count, strips_per_box, tablets_per_strip, purchase_price_box, selling_price_box, gst_rate, updated_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                      (st.session_state.user_email, m_name.strip().upper(), m_box, m_spb, 10, m_p_box, m_s_box, 12.0, str(date.today())))
-                            st.success("✅ Saved to Wholesale Database!"); st.rerun()
-            with tab_view:
-                m_data = run_query("SELECT item_name, box_count, strips_per_box, purchase_price_box, selling_price_box FROM medical_wholesaler WHERE shop_email=?", (st.session_state.user_email,))
-                if m_data: st.dataframe(pd.DataFrame(m_data, columns=["Medicine", "Boxes", "Strips/Box", "Buy/Box", "Sell/Box"]), use_container_width=True)
+                                      (st.session_state.user_email, mw_name.strip().upper(), mw_boxes, mw_spb, mw_tps, mw_p_box, mw_s_box, p_gst, str(date.today())))
+                            st.success(f"✅ {mw_name.upper()} added to Wholesale database with {mw_gst_sel}!")
+                            st.rerun()
+            
+            with tab_med_stock:
+                st.subheader("📦 Live Wholesale Medicine Inventory")
+                mw_data = run_query("SELECT item_name, box_count, strips_per_box, tablets_per_strip, purchase_price_box, selling_price_box, gst_rate FROM medical_wholesaler WHERE shop_email=?", (st.session_state.user_email,))
+                if mw_data:
+                    st.dataframe(pd.DataFrame(mw_data, columns=["Medicine Name", "Boxes", "Strips / Box", "Tablets / Strip", "Buy / Box (₹)", "Sell / Box (₹)", "GST %"]), use_container_width=True)
+                else:
+                    st.info("No wholesale medicines in stock yet.")
+                    
+            with tab_med_sales:
+                st.subheader("🧾 Wholesale Sales POS")
+                ws_items = run_query("SELECT id, item_name, selling_price_box, box_count, gst_rate FROM medical_wholesaler WHERE shop_email=? AND box_count > 0", (st.session_state.user_email,))
+                if ws_items:
+                    ws_item_dict = {f"{item[1]} (Stock: {item[3]} Boxes) - ₹{item[2]}": item for item in ws_items}
+                    sel_ws = st.selectbox("Select Medicine", list(ws_item_dict.keys()))
+                    sel_item = ws_item_dict[sel_ws]
+                    
+                    c1, c2, c3 = st.columns(3)
+                    with c1: ws_qty = st.number_input("Boxes to Sell", min_value=1, max_value=sel_item[3], value=1)
+                    with c2: ws_rate = st.number_input("Rate per Box (₹)", value=float(sel_item[2]))
+                    with c3: ws_gst_choice = st.selectbox("Sales GST Option", list(GST_SLABS.keys()), key="ws_gst_s")
+                    
+                    ws_base = ws_qty * ws_rate
+                    ws_gst_pct = GST_SLABS[ws_gst_choice]
+                    ws_gst_amt = (ws_base * ws_gst_pct) / 100.0 if ws_gst_pct > 0 else 0.0
+                    ws_total = ws_base + ws_gst_amt
+                    
+                    st.write(f"**Base Amount:** ₹{ws_base:.2f} | **GST Amount:** ₹{ws_gst_amt:.2f}")
+                    st.write(f"### **Total Payable:** ₹ {ws_total:.2f}")
+                    
+                    if st.button("🛒 Generate Wholesale Bill", type="primary"):
+                        inv_no = "MED-INV-" + "".join(random.choices(string.digits, k=6))
+                        run_query("UPDATE medical_wholesaler SET box_count = box_count - ? WHERE id=?", (ws_qty, sel_item[0]))
+                        st.success(f"✅ Wholesale Bill Generated! Invoice: {inv_no}")
+                        st.balloons()
+                        st.rerun()
+                else:
+                    st.info("No wholesale stock available.")
 
+        # 💊 MEDICAL STORE PORTAL (STRIP -> TABLET AUTO CALCULATION & GST)
         elif st.session_state.user_role == "MedStore":
-            st.title(f"💊 Medical Store Portal ({st.session_state.user_email})")
-            tab_add, tab_view = st.tabs(["📥 Add Store Medicine", "📦 Pharmacy Live Stock"])
-            with tab_add:
-                with st.form("med_st_form"):
-                    s_name = st.text_input("Medicine Name")
-                    s_strips = st.number_input("Strips Count", min_value=1, value=50)
-                    s_tps = st.number_input("Tablets per Strip", min_value=1, value=10)
-                    s_p_strip = st.number_input("Buy Rate / Strip (₹)", min_value=0.0, value=40.0)
-                    s_s_strip = st.number_input("Sell Rate / Strip (₹)", min_value=0.0, value=60.0)
-                    if st.form_submit_button("Save Store Medicine"):
-                        if s_name:
+            my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved, state FROM users WHERE email=?", (st.session_state.user_email,))[0]
+            db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved, shop_state = my_data
+            
+            c1, c2 = st.columns([3, 1])
+            with c1: st.markdown(f'<h2>💊 Medical Store Portal - {shop_name.upper()}</h2>', unsafe_allow_html=True)
+            with c2: 
+                if shop_photo: st.image(shop_photo, width=80)
+                st.info(f"Valid Till: {exp_date}")
+                
+            tab_st_entry, tab_st_stock, tab_st_sales = st.tabs(["📥 Purchase (Add Medicine)", "📦 Pharmacy Live Stock", "🧾 Counter Sales POS"])
+            
+            with tab_st_entry:
+                st.subheader("📥 Medical Store Purchase Order (Strip & Tablet Calculation)")
+                with st.form("med_st_new_form"):
+                    ms_name = st.text_input("Medicine Name")
+                    c1, c2 = st.columns(2)
+                    with c1: ms_strips = st.number_input("Total Strips", min_value=1, value=50)
+                    with c2: ms_tps = st.number_input("Tablets per Strip", min_value=1, value=10)
+                    
+                    c3, c4, c5 = st.columns(3)
+                    with c3: ms_p_strip = st.number_input("Buy Rate per Strip (₹)", min_value=0.0, value=40.0)
+                    with c4: ms_s_strip = st.number_input("Sell Rate per Strip (₹)", min_value=0.0, value=60.0)
+                    with c5: ms_gst_sel = st.selectbox("GST Option", list(GST_SLABS.keys()), key="st_gst_p")
+                    
+                    if st.form_submit_button("💾 Save Store Purchase"):
+                        if ms_name:
+                            p_gst = GST_SLABS[ms_gst_sel]
                             run_query("INSERT INTO medical_store (shop_email, item_name, strips_count, tablets_per_strip, purchase_price_strip, selling_price_strip, gst_rate, updated_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                      (st.session_state.user_email, s_name.strip().upper(), s_strips, s_tps, s_p_strip, s_s_strip, 12.0, str(date.today())))
-                            st.success("✅ Saved to Store Database!"); st.rerun()
-            with tab_view:
-                st_data = run_query("SELECT item_name, strips_count, tablets_per_strip, purchase_price_strip, selling_price_strip FROM medical_store WHERE shop_email=?", (st.session_state.user_email,))
-                if st_data: st.dataframe(pd.DataFrame(st_data, columns=["Medicine", "Strips", "Tablets/Strip", "Buy/Strip", "Sell/Strip"]), use_container_width=True)
+                                      (st.session_state.user_email, ms_name.strip().upper(), ms_strips, ms_tps, ms_p_strip, ms_s_strip, p_gst, str(date.today())))
+                            st.success(f"✅ {ms_name.upper()} added to Store database with {ms_gst_sel}!")
+                            st.rerun()
+            
+            with tab_st_stock:
+                st.subheader("📦 Live Pharmacy Inventory")
+                ms_data = run_query("SELECT item_name, strips_count, tablets_per_strip, purchase_price_strip, selling_price_strip, gst_rate FROM medical_store WHERE shop_email=?", (st.session_state.user_email,))
+                if ms_data:
+                    st.dataframe(pd.DataFrame(ms_data, columns=["Medicine Name", "Strips In Stock", "Tablets / Strip", "Buy / Strip (₹)", "Sell / Strip (₹)", "GST %"]), use_container_width=True)
+                else:
+                    st.info("No store medicines in stock yet.")
+                    
+            with tab_st_sales:
+                st.subheader("🧾 Pharmacy Counter POS (Auto Strip & Tablet Deduction)")
+                st_items = run_query("SELECT id, item_name, selling_price_strip, strips_count, tablets_per_strip, gst_rate FROM medical_store WHERE shop_email=? AND strips_count > 0", (st.session_state.user_email,))
+                if st_items:
+                    st_item_dict = {f"{item[1]} (Stock: {item[3]} Strips) - ₹{item[2]}/Strip": item for item in st_items}
+                    sel_st = st.selectbox("Select Medicine to Sell", list(st_item_dict.keys()))
+                    sel_m = st_item_dict[sel_st]
+                    
+                    unit_mode = st.radio("Sale Unit", ["Full Strip", "Individual Tablets"])
+                    c1, c2, c3 = st.columns(3)
+                    
+                    if unit_mode == "Full Strip":
+                        with c1: s_qty = st.number_input("Number of Strips", min_value=1, value=1)
+                        with c2: s_rate = st.number_input("Rate per Strip (₹)", value=float(sel_m[2]))
+                        deduct_val = float(s_qty)
+                    else:
+                        per_tab_rate = float(sel_m[2]) / float(sel_m[4]) if sel_m[4] > 0 else float(sel_m[2])
+                        with c1: s_qty = st.number_input("Number of Tablets", min_value=1, value=1)
+                        with c2: s_rate = st.number_input("Rate per Tablet (₹)", value=float(per_tab_rate))
+                        deduct_val = float(s_qty) / float(sel_m[4]) if sel_m[4] > 0 else float(s_qty)
+                        
+                    with c3: s_gst_choice = st.selectbox("Sales GST Option", list(GST_SLABS.keys()), key="st_gst_s")
+                    
+                    s_base = s_qty * s_rate
+                    s_gst_pct = GST_SLABS[s_gst_choice]
+                    s_gst_amt = (s_base * s_gst_pct) / 100.0 if s_gst_pct > 0 else 0.0
+                    s_final = s_base + s_gst_amt
+                    
+                    st.write(f"**Base Amount:** ₹{s_base:.2f} | **GST ({s_gst_choice}):** ₹{s_gst_amt:.2f}")
+                    st.write(f"### **Total Payable:** ₹ {s_final:.2f}")
+                    
+                    if st.button("🛒 Generate Counter Bill", type="primary"):
+                        if deduct_val <= float(sel_m[3]):
+                            inv_no = "RET-INV-" + "".join(random.choices(string.digits, k=6))
+                            run_query("UPDATE medical_store SET strips_count = strips_count - ? WHERE id=?", (deduct_val, sel_m[0]))
+                            st.success(f"✅ Medicine Bill Generated! Inv No: {inv_no}")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.error("Not enough stock!")
+                else:
+                    st.info("No medicine stock available.")
 
+        # 🛒 GENERAL SHOP / GROCERY
         else:
-            # ORIGINAL GROCERY / GENERAL SHOP
             st.title(f"📊 Dashboard ({st.session_state.user_role})")
             inv_data = run_query("SELECT item_name, stock, purchase_price, selling_price FROM inventory WHERE shop_email=?", (st.session_state.user_email,))
             if inv_data: st.dataframe(pd.DataFrame(inv_data, columns=["Item", "Stock", "Buy Rate", "Sell Rate"]), use_container_width=True)
             else: st.info("No items in stock. Add items from purchase.")
 
 # ==========================================
-# 4. HOME GROUND (TOTAL 7 BUTTONS) & FULL REGISTRATION FORM
+# 4. HOME GROUND & FULL REGISTRATION
 # ==========================================
 else:
     if st.session_state.current_page == "Home Ground":
@@ -393,7 +504,7 @@ else:
         if settings[1]: st.image(settings[1], use_container_width=True)
         else: st.markdown("""<div class="hero-container"><div class="hero-title">🚀 KULU SMART ERP & POS</div><div class="hero-subtitle">NEXT-GEN CLOUD BILLING, BARCODE & INVENTORY</div></div>""", unsafe_allow_html=True)
         
-        # ROW 1: ORIGINAL 3 BUTTONS
+        # ROW 1: 3 BUTTONS
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown("""<div class="feature-card border-admin"><div class="card-icon">👑</div><div class="card-title">Super Admin</div><div class="card-text">Control software licensing and global system settings.</div></div>""", unsafe_allow_html=True)
@@ -416,7 +527,7 @@ else:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # ROW 2: 2 NEW MEDICINE BUTTONS
+        # ROW 2: 2 MEDICINE BUTTONS
         m_col1, m_col2 = st.columns(2)
         with m_col1:
             st.markdown("""<div class="feature-card border-med-ws"><div class="card-icon">🏢</div><div class="card-title">Medicine Wholesaler</div><div class="card-text">Wholesale medicine cartons, boxes, packets & GST tracking.</div></div>""", unsafe_allow_html=True)
@@ -450,7 +561,7 @@ else:
     # 🟢 DIRECT LOGIN (NO OTP)
     elif st.session_state.current_page == "Login":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
-        st.title(f"🔐 {st.session_state.login_role if st.session_state.login_role else ''} Login")
+        st.title(f"🔐 Login")
         l_email = st.text_input("Email Address (User ID)")
         l_pass = st.text_input("Secure Password", type="password")
         
@@ -466,7 +577,7 @@ else:
                     st.rerun()
             else: st.error("Invalid Email or Password.")
 
-    # 🟢 FULL REGISTRATION FORM RESTORED (ALL FIELDS INTACT)
+    # 🟢 REGISTRATION FORM
     elif st.session_state.current_page == "Register":
         if st.button("⬅️ Back to Home"): st.session_state.current_page = "Home Ground"; st.rerun()
         st.title("🛒 Buy Kulu ERP License")
@@ -519,9 +630,8 @@ else:
                 else:
                     st.warning("⚠️ Please fill all required fields (Business Name, Email, Password, Mobile).")
 
-    # 🟢 PAYMENT & UTR SUBMIT -> SHOW SUCCESS -> CLICK 'DONE' TO GO DIRECTLY TO LOGIN
+    # 🟢 PAYMENT & DONE BUTTON -> DIRECT LOGIN ENTRY
     elif st.session_state.current_page == "Payment":
-        # JADI PAYMENT SUCCESS HEISARICHI, TEBE KHALI SUCCESS SCREEN + 'DONE' BUTTON DEKHEIBA
         if "payment_done" in st.session_state:
             p_res = st.session_state.payment_done
             st.success("🎉 Payment Successfully Verified!")
@@ -540,18 +650,23 @@ else:
                 </div>
             """, unsafe_allow_html=True)
             
-            # 🟢 DONE BUTTON: QLIK KALE DIRECT LOGIN SCREEN KU NEI ASIBA 🟢
-            if st.button("✅ Done (Go to Login)", type="primary", use_container_width=True):
-                # Clean up session and go straight to login
-                target_role = p_res.get('role', 'Shop')
-                del st.session_state.payment_done
-                if "reg_data" in st.session_state:
-                    del st.session_state.reg_data
-                st.session_state.login_role = target_role
-                st.session_state.current_page = "Login"
-                st.rerun()
+            c_d1, c_d2 = st.columns(2)
+            with c_d1:
+                if st.button("✅ Done (Direct Enter ERP)", type="primary", use_container_width=True):
+                    st.session_state.logged_in = True
+                    st.session_state.user_email = p_res['email']
+                    st.session_state.user_role = p_res['role']
+                    st.session_state.current_page = "Home Ground"
+                    del st.session_state.payment_done
+                    if "reg_data" in st.session_state: del st.session_state.reg_data
+                    st.rerun()
+            with c_d2:
+                if st.button("🔐 Go to Login Screen", use_container_width=True):
+                    del st.session_state.payment_done
+                    if "reg_data" in st.session_state: del st.session_state.reg_data
+                    st.session_state.current_page = "Login"
+                    st.rerun()
 
-        # JADI PAYMENT HEINAHI, TEBE QR CODE AU UTR SUBMIT FORM DEKHEIBA
         else:
             d = st.session_state.reg_data
             admin_set = run_query("SELECT upi_id FROM admin_settings WHERE id=1")[0]
@@ -584,7 +699,6 @@ else:
                     exp_date = str(date.today() + timedelta(days=exp_days))
                     hash_new_pass = hash_pass(d['pass'])
                     
-                    # DATABASE UPSERT
                     existing = run_query("SELECT id FROM users WHERE email=?", (d['email'],))
                     if existing:
                         run_query("""UPDATE users SET password=?, role=?, payment_status='Paid', approved=1, 

@@ -45,14 +45,13 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (100% CRASH-PROOF AUTO-UPDATER)
+# 1. DATABASE SETUP (100% CRASH-PROOF)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
     conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     
-    # 1. Base Tables Creation
     c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
@@ -62,7 +61,6 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT)''')
     conn.commit()
 
-    # 2. Dynamic Column Patcher (Safely adds columns if missing)
     schema_updates = {
         'users': [
             ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
@@ -82,7 +80,7 @@ def init_db():
             ("invoice_no", "TEXT"), ("rate", "REAL"), ("gst_pct", "REAL"), ("gst_amt", "REAL DEFAULT 0")
         ],
         'medical_wholesaler': [
-            ("item_name", "TEXT"), ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
+            ("item_name", "TEXT"), ("box_count", "REAL DEFAULT 0.0"), ("strips_per_box", "INTEGER DEFAULT 200"),
             ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0.0"),
             ("selling_price_box", "REAL DEFAULT 0.0"), ("gst_rate", "REAL DEFAULT 0.0"),
             ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
@@ -105,7 +103,6 @@ def init_db():
                     pass
     conn.commit()
 
-    # 3. Super Admin Init
     admin_hash = hash_pass('admin123')
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", ('Super Admin', 'dhana6942@gmail.com', admin_hash, 'SuperAdmin', 'Paid', 1, 0))
     try:
@@ -195,6 +192,24 @@ if "current_page" not in st.session_state: st.session_state.current_page = "Home
 if "login_role" not in st.session_state: st.session_state.login_role = None
 
 INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"]
+
+# 🔴 SALES RECEIPT HTML 🔴
+def generate_receipt_html(shop_name, item_name, qty, rate, gst_pct, gst_amt, total_price, date_str, shop_upi="", cust_name="", cust_mob="", inv_no="", base_amt=0):
+    qr_html = ""
+    if shop_upi:
+        safe_shop_name = urllib.parse.quote(shop_name)
+        upi_url = f"upi://pay?pa={shop_upi}&pn={safe_shop_name}&am={total_price:.2f}&cu=INR"
+        qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={urllib.parse.quote(upi_url)}"
+        qr_html = f"""<div class="center" style="margin-top: 15px;"><img src="{qr_img_src}" alt="Scan to Pay" width="90" height="90" style="border: 2px solid #000; padding: 2px;"><div style="font-size: 11px; font-weight: bold; margin-top: 5px;">Scan to Pay ₹ {total_price:.2f}</div></div>"""
+    cust_info = f"""<div class="line"></div><div style="font-size: 11px; margin-bottom: 5px;"><b>Customer:</b> {cust_name.upper()}<br><b>Mob:</b> {cust_mob}</div>""" if cust_name or cust_mob else ""
+    inv_info = f"<div class='center' style='font-size: 10px; margin-bottom: 5px;'>Inv No: {inv_no}</div>" if inv_no else ""
+    gst_html = f"<tr><td>Base Amount:</td><td class='right'>₹ {base_amt:.2f}</td></tr><tr><td>GST ({gst_pct}%):</td><td class='right'>(+) ₹ {gst_amt:.2f}</td></tr>" if gst_pct > 0 else "<tr><td>GST Mode:</td><td class='right'>No GST (0%)</td></tr>"
+    return f"""<html><head><style>@media print {{ @page {{ margin: 0; size: 58mm auto; }} body {{ margin: 0; padding: 0; background: #fff; }} #print-btn {{ display: none; }} }} body {{ font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4f4f4; padding: 20px; }} .receipt-box {{ width: 58mm; min-width: 220px; max-width: 100%; margin: 0 auto; padding: 10px; text-align: left; background: #fff; border: 1px solid #ccc; }} .center {{ text-align: center; }} .line {{ border-top: 1px dashed #000; margin: 8px 0; }} .bold {{ font-weight: bold; }} table {{ width: 100%; font-size: 12px; margin: 5px 0; border-collapse: collapse; }} .right {{ text-align: right; }} .btn {{ padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 20px; }}</style></head><body><div class="receipt-box"><div class="center bold" style="font-size: 16px;">{shop_name.upper()}</div><div class="center" style="font-size: 10px; margin-bottom: 5px;">Invoice / Cash Memo</div>{inv_info}<div class="center" style="font-size: 11px;">Date: {date_str}</div>{cust_info}<div class="line"></div><div><span class="bold">Item:</span> {item_name.upper()}</div><table><tr><td>Qty: {qty}</td><td class="right">Rate: ₹ {rate:.2f}</td></tr>{gst_html}</table><div class="line"></div><div class="right bold" style="font-size: 15px;">Total: ₹ {total_price:.2f}</div>{qr_html}<div class="line"></div><div class="center" style="font-size: 10px; margin-top: 5px;">Thank You! Visit Again.</div></div><div id="print-btn"><button class="btn" onclick="window.print()">🖨️ Print Receipt & QR Code</button><br><br></div></body></html>"""
+
+def generate_gst_report_html(df_gst, tot_gst, shop_name):
+    rows = ""
+    for _, r in df_gst.iterrows(): rows += f"<tr><td>{r['Invoice']}</td><td>{r['Date']}</td><td>{str(r['Customer']).upper()}</td><td>₹{r['Base Value (₹)']:.2f}</td><td>{r['GST %']}%</td><td>₹{r['GST Amount (₹)']:.2f}</td><td>₹{r['Total Value (₹)']:.2f}</td></tr>"
+    return f"""<html><head><style>body {{ font-family: Arial, sans-serif; padding: 20px; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }} th {{ background-color: #f2f2f2; }} .header {{ text-align: center; margin-bottom: 30px; }} .summary {{ margin-top: 30px; padding: 15px; background: #eef9f1; border-radius: 8px; }} @media print {{ #print-btn {{ display: none; }} }}</style></head><body><div class="header"><h2>GST Sales & Liability Report</h2><h3>{shop_name.upper()}</h3><p>Report Generated on: {str(date.today())}</p></div><button id="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px;">🖨️ Print PDF for CA</button><table><tr><th>Invoice No</th><th>Date</th><th>Customer</th><th>Base Value</th><th>GST Slab</th><th>GST Amount</th><th>Total Value</th></tr>{rows}</table><div class="summary"><h3>Tax Liability Summary</h3><h4>Total GST Collected: ₹ {tot_gst:.2f}</h4></div></body></html>"""
 
 # ==========================================
 # 3. LOGGED IN PORTAL WORKFLOW
@@ -321,7 +336,7 @@ if st.session_state.logged_in:
                 if shop_photo: st.image(shop_photo, width=80)
                 st.info(f"Valid Till: {exp_date}")
                 
-            tab_med_entry, tab_med_stock, tab_med_sales = st.tabs(["📥 Purchase (Add Medicine)", "📦 Wholesale Stock Register", "🧾 Wholesale Sales POS"])
+            tab_med_entry, tab_med_stock, tab_med_sales, tab_hist, tab_gst_rep = st.tabs(["📥 Purchase (Add Medicine)", "📦 Wholesale Stock Register", "🧾 Wholesale Sales POS", "🖨️ Bill History", "📊 GST Reports"])
             
             with tab_med_entry:
                 st.subheader("📥 Wholesale Medicine Purchase Order (Box & Strip Calculation)")
@@ -342,7 +357,7 @@ if st.session_state.logged_in:
                             p_gst = GST_SLABS[mw_gst_sel]
                             run_query("INSERT INTO medical_wholesaler (shop_email, item_name, box_count, strips_per_box, tablets_per_strip, purchase_price_box, selling_price_box, gst_rate, updated_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                       (st.session_state.user_email, mw_name.strip().upper(), mw_boxes, mw_spb, mw_tps, mw_p_box, mw_s_box, p_gst, str(date.today())))
-                            st.success(f"✅ {mw_name.upper()} added to Wholesale database with {mw_gst_sel}!")
+                            st.success(f"✅ {mw_name.upper()} added to Wholesale database!")
                             st.rerun()
             
             with tab_med_stock:
@@ -354,34 +369,91 @@ if st.session_state.logged_in:
                     st.info("No wholesale medicines in stock yet.")
                     
             with tab_med_sales:
-                st.subheader("🧾 Wholesale Sales POS")
-                ws_items = run_query("SELECT id, item_name, selling_price_box, box_count, gst_rate FROM medical_wholesaler WHERE shop_email=? AND box_count > 0", (st.session_state.user_email,))
-                if ws_items:
-                    ws_item_dict = {f"{item[1]} (Stock: {item[3]} Boxes) - ₹{item[2]}": item for item in ws_items}
-                    sel_ws = st.selectbox("Select Medicine", list(ws_item_dict.keys()))
-                    sel_item = ws_item_dict[sel_ws]
-                    
-                    c1, c2, c3 = st.columns(3)
-                    with c1: ws_qty = st.number_input("Boxes to Sell", min_value=1, max_value=sel_item[3], value=1)
-                    with c2: ws_rate = st.number_input("Rate per Box (₹)", value=float(sel_item[2]))
-                    with c3: ws_gst_choice = st.selectbox("Sales GST Option", list(GST_SLABS.keys()), key="ws_gst_s")
-                    
-                    ws_base = ws_qty * ws_rate
-                    ws_gst_pct = GST_SLABS[ws_gst_choice]
-                    ws_gst_amt = (ws_base * ws_gst_pct) / 100.0 if ws_gst_pct > 0 else 0.0
-                    ws_total = ws_base + ws_gst_amt
-                    
-                    st.write(f"**Base Amount:** ₹{ws_base:.2f} | **GST Amount:** ₹{ws_gst_amt:.2f}")
-                    st.write(f"### **Total Payable:** ₹ {ws_total:.2f}")
-                    
-                    if st.button("🛒 Generate Wholesale Bill", type="primary"):
-                        inv_no = "MED-INV-" + "".join(random.choices(string.digits, k=6))
-                        run_query("UPDATE medical_wholesaler SET box_count = box_count - ? WHERE id=?", (ws_qty, sel_item[0]))
-                        st.success(f"✅ Wholesale Bill Generated! Invoice: {inv_no}")
-                        st.balloons()
-                        st.rerun()
+                st.subheader("🧾 Wholesale Sales POS (Box & Strip Auto Calculation)")
+                if "print_receipt_mw" in st.session_state:
+                    st.success("✅ Sale Recorded Successfully!")
+                    components.html(st.session_state.print_receipt_mw, height=600)
+                    if st.button("➕ Create New Bill", type="primary"): del st.session_state.print_receipt_mw; st.rerun()
                 else:
-                    st.info("No wholesale stock available.")
+                    with st.expander("👤 Customer Details", expanded=False):
+                        c1, c2 = st.columns(2)
+                        with c1: raw_c_name = st.text_input("Customer Name", key="cname_mw"); cust_name = str(raw_c_name).strip().upper()
+                        with c2: cust_mob = st.text_input("Mobile Number", key="cmob_mw")
+                        
+                    ws_items = run_query("SELECT id, item_name, selling_price_box, box_count, gst_rate, purchase_price_box, strips_per_box FROM medical_wholesaler WHERE shop_email=? AND box_count > 0", (st.session_state.user_email,))
+                    if ws_items:
+                        ws_item_dict = {f"{item[1]} (Stock: {item[3]:.2f} Boxes) - ₹{item[2]}/Box": item for item in ws_items}
+                        sel_ws = st.selectbox("Select Medicine to Sell", list(ws_item_dict.keys()))
+                        sel_item = ws_item_dict[sel_ws]
+                        
+                        unit_mode_ws = st.radio("Wholesale Sale Unit", ["Full Box / Carton", "Individual Strips"])
+                        c1, c2, c3 = st.columns(3)
+                        
+                        if unit_mode_ws == "Full Box / Carton":
+                            with c1: ws_qty = st.number_input("Boxes to Sell", min_value=1, value=1)
+                            with c2: ws_rate = st.number_input("Rate per Box (₹)", value=float(sel_item[2]))
+                            deduct_val = float(ws_qty)
+                            buy_rate_unit = float(sel_item[5])
+                        else:
+                            spb = float(sel_item[6]) if float(sel_item[6]) > 0 else 1.0
+                            per_strip_rate = float(sel_item[2]) / spb
+                            buy_rate_unit = float(sel_item[5]) / spb
+                            with c1: ws_qty = st.number_input("Strips to Sell", min_value=1, value=1)
+                            with c2: ws_rate = st.number_input("Rate per Strip (₹)", value=float(per_strip_rate))
+                            deduct_val = float(ws_qty) / spb
+                            
+                        with c3: ws_gst_choice = st.selectbox("Sales GST Option", list(GST_SLABS.keys()), key="ws_gst_s")
+                        
+                        ws_base = ws_qty * ws_rate
+                        ws_gst_pct = GST_SLABS[ws_gst_choice]
+                        ws_gst_amt = (ws_base * ws_gst_pct) / 100.0 if ws_gst_pct > 0 else 0.0
+                        ws_total = ws_base + ws_gst_amt
+                        profit = ws_total - (buy_rate_unit * ws_qty)
+                        
+                        st.write(f"**Base Amount:** ₹{ws_base:.2f} | **GST Amount:** ₹{ws_gst_amt:.2f}")
+                        st.write(f"### **Total Payable:** ₹ {ws_total:.2f}")
+                        
+                        if st.button("🛒 Generate Wholesale Bill", type="primary"):
+                            if deduct_val <= float(sel_item[3]):
+                                inv_no = "MED-INV-" + "".join(random.choices(string.digits, k=6))
+                                run_query("UPDATE medical_wholesaler SET box_count = box_count - ? WHERE id=?", (deduct_val, sel_item[0]))
+                                run_query("""INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type, customer_name, customer_mobile, invoice_no, rate, gst_pct, gst_amt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (st.session_state.user_email, str(date.today()), sel_item[1], ws_qty, ws_total, profit, 1 if ws_gst_pct > 0 else 0, 'Sale', cust_name, cust_mob, inv_no, ws_rate, ws_gst_pct, ws_gst_amt))
+                                st.session_state.print_receipt_mw = generate_receipt_html(shop_name, sel_item[1], ws_qty, ws_rate, ws_gst_pct, ws_gst_amt, ws_total, str(date.today()), shop_upi, cust_name, cust_mob, inv_no, ws_base)
+                                st.rerun()
+                            else:
+                                st.error("Not enough stock!")
+                    else:
+                        st.info("No wholesale stock available.")
+
+            with tab_hist:
+                st.subheader("🖨️ Bill History & Reprint")
+                history = run_query("SELECT invoice_no, date, customer_name, item_name, qty, rate, gst_pct, total_price, gst_amt, customer_mobile FROM transactions WHERE shop_email=? AND trans_type='Sale' ORDER BY id DESC LIMIT 50", (st.session_state.user_email,))
+                if history:
+                    history_clean = [h for h in history if h[0]]
+                    if history_clean:
+                        st.dataframe(pd.DataFrame(history_clean, columns=["Invoice No", "Date", "Customer", "Item", "Qty", "Rate", "GST %", "Total (₹)", "GST Amt", "Mob"])[["Invoice No", "Date", "Customer", "Item", "Total (₹)"]], use_container_width=True)
+                        c1, c2 = st.columns([2, 1])
+                        with c1: sel_inv = st.selectbox("🔍 Select Invoice to Reprint", [h[0] for h in history_clean])
+                        with c2:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            if st.button("🖨️ Reprint Selected Bill"):
+                                bill = [h for h in history_clean if h[0] == sel_inv][0]
+                                base_val = bill[5] * bill[4]
+                                st.session_state.reprint_receipt_mw = generate_receipt_html(shop_name, str(bill[3]).upper(), bill[4], bill[5] or 0.0, bill[6] or 0.0, bill[8] or 0.0, bill[7], str(bill[1]), shop_upi, str(bill[2]).upper(), bill[9], bill[0], base_val); st.rerun()
+                if "reprint_receipt_mw" in st.session_state:
+                    st.markdown("---"); st.success("✅ Bill Loaded for Reprint!"); components.html(st.session_state.reprint_receipt_mw, height=600)
+                    if st.button("❌ Close Reprint View"): del st.session_state.reprint_receipt_mw; st.rerun()
+
+            with tab_gst_rep:
+                st.subheader("📊 GST Filing & Balance Sheet")
+                gst_data = run_query("SELECT invoice_no, date, customer_name, total_price - gst_amt, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND trans_type='Sale' AND is_gst=1", (st.session_state.user_email,))
+                if gst_data:
+                    df_gst = pd.DataFrame(gst_data, columns=["Invoice", "Date", "Customer", "Base Value (₹)", "GST %", "GST Amount (₹)", "Total Value (₹)"])
+                    st.dataframe(df_gst, use_container_width=True)
+                    tot_gst = df_gst["GST Amount (₹)"].sum()
+                    st.metric("Total GST Collected (Payable)", f"₹ {tot_gst:.2f}")
+                    components.html(generate_gst_report_html(df_gst, tot_gst, shop_name), height=100)
+                else: st.info("No GST sales found yet.")
 
         # 💊 MEDICAL STORE PORTAL
         elif st.session_state.user_role == "MedStore":
@@ -394,10 +466,10 @@ if st.session_state.logged_in:
                 if shop_photo: st.image(shop_photo, width=80)
                 st.info(f"Valid Till: {exp_date}")
                 
-            tab_st_entry, tab_st_stock, tab_st_sales = st.tabs(["📥 Purchase (Add Medicine)", "📦 Pharmacy Live Stock", "🧾 Counter Sales POS"])
+            tab_st_entry, tab_st_stock, tab_st_sales, tab_hist, tab_gst_rep = st.tabs(["📥 Purchase (Add Medicine)", "📦 Pharmacy Live Stock", "🧾 Counter Sales POS", "🖨️ Bill History", "📊 GST Reports"])
             
             with tab_st_entry:
-                st.subheader("📥 Medical Store Purchase Order")
+                st.subheader("📥 Medical Store Purchase Order (Strip & Tablet Calculation)")
                 with st.form("med_st_new_form"):
                     ms_name = st.text_input("Medicine Name")
                     c1, c2 = st.columns(2)
@@ -427,46 +499,89 @@ if st.session_state.logged_in:
                     
             with tab_st_sales:
                 st.subheader("🧾 Pharmacy Counter POS (Auto Strip & Tablet Deduction)")
-                st_items = run_query("SELECT id, item_name, selling_price_strip, strips_count, tablets_per_strip, gst_rate FROM medical_store WHERE shop_email=? AND strips_count > 0", (st.session_state.user_email,))
-                if st_items:
-                    st_item_dict = {f"{item[1]} (Stock: {item[3]:.1f} Strips) - ₹{item[2]}/Strip": item for item in st_items}
-                    sel_st = st.selectbox("Select Medicine to Sell", list(st_item_dict.keys()))
-                    sel_m = st_item_dict[sel_st]
-                    
-                    unit_mode = st.radio("Sale Unit", ["Full Strip", "Individual Tablets"])
-                    c1, c2, c3 = st.columns(3)
-                    
-                    if unit_mode == "Full Strip":
-                        with c1: s_qty = st.number_input("Number of Strips", min_value=1, value=1)
-                        with c2: s_rate = st.number_input("Rate per Strip (₹)", value=float(sel_m[2]))
-                        deduct_val = float(s_qty)
-                    else:
-                        per_tab_rate = float(sel_m[2]) / float(sel_m[4]) if sel_m[4] > 0 else float(sel_m[2])
-                        with c1: s_qty = st.number_input("Number of Tablets", min_value=1, value=1)
-                        with c2: s_rate = st.number_input("Rate per Tablet (₹)", value=float(per_tab_rate))
-                        deduct_val = float(s_qty) / float(sel_m[4]) if sel_m[4] > 0 else float(s_qty)
-                        
-                    with c3: s_gst_choice = st.selectbox("Sales GST Option", list(GST_SLABS.keys()), key="st_gst_s")
-                    
-                    s_base = s_qty * s_rate
-                    s_gst_pct = GST_SLABS[s_gst_choice]
-                    s_gst_amt = (s_base * s_gst_pct) / 100.0 if s_gst_pct > 0 else 0.0
-                    s_final = s_base + s_gst_amt
-                    
-                    st.write(f"**Base Amount:** ₹{s_base:.2f} | **GST ({s_gst_choice}):** ₹{s_gst_amt:.2f}")
-                    st.write(f"### **Total Payable:** ₹ {s_final:.2f}")
-                    
-                    if st.button("🛒 Generate Counter Bill", type="primary"):
-                        if deduct_val <= float(sel_m[3]):
-                            inv_no = "RET-INV-" + "".join(random.choices(string.digits, k=6))
-                            run_query("UPDATE medical_store SET strips_count = strips_count - ? WHERE id=?", (deduct_val, sel_m[0]))
-                            st.success(f"✅ Medicine Bill Generated! Inv No: {inv_no}")
-                            st.balloons()
-                            st.rerun()
-                        else:
-                            st.error("Not enough stock!")
+                if "print_receipt_ms" in st.session_state:
+                    st.success("✅ Sale Recorded Successfully!")
+                    components.html(st.session_state.print_receipt_ms, height=600)
+                    if st.button("➕ Create New Bill", type="primary"): del st.session_state.print_receipt_ms; st.rerun()
                 else:
-                    st.info("No medicine stock available.")
+                    with st.expander("👤 Customer Details", expanded=False):
+                        c1, c2 = st.columns(2)
+                        with c1: raw_c_name = st.text_input("Customer Name", key="cname_ms"); cust_name = str(raw_c_name).strip().upper()
+                        with c2: cust_mob = st.text_input("Mobile Number", key="cmob_ms")
+                        
+                    st_items = run_query("SELECT id, item_name, selling_price_strip, strips_count, tablets_per_strip, gst_rate, purchase_price_strip FROM medical_store WHERE shop_email=? AND strips_count > 0", (st.session_state.user_email,))
+                    if st_items:
+                        st_item_dict = {f"{item[1]} (Stock: {item[3]:.1f} Strips) - ₹{item[2]}/Strip": item for item in st_items}
+                        sel_st = st.selectbox("Select Medicine to Sell", list(st_item_dict.keys()))
+                        sel_m = st_item_dict[sel_st]
+                        
+                        unit_mode = st.radio("Sale Unit", ["Full Strip", "Individual Tablets"])
+                        c1, c2, c3 = st.columns(3)
+                        
+                        if unit_mode == "Full Strip":
+                            with c1: s_qty = st.number_input("Number of Strips", min_value=1, value=1)
+                            with c2: s_rate = st.number_input("Rate per Strip (₹)", value=float(sel_m[2]))
+                            deduct_val = float(s_qty)
+                            buy_rate_unit = float(sel_m[6])
+                        else:
+                            per_tab_rate = float(sel_m[2]) / float(sel_m[4]) if sel_m[4] > 0 else float(sel_m[2])
+                            buy_rate_unit = float(sel_m[6]) / float(sel_m[4]) if sel_m[4] > 0 else float(sel_m[6])
+                            with c1: s_qty = st.number_input("Number of Tablets", min_value=1, value=1)
+                            with c2: s_rate = st.number_input("Rate per Tablet (₹)", value=float(per_tab_rate))
+                            deduct_val = float(s_qty) / float(sel_m[4]) if sel_m[4] > 0 else float(s_qty)
+                            
+                        with c3: s_gst_choice = st.selectbox("Sales GST Option", list(GST_SLABS.keys()), key="st_gst_s")
+                        
+                        s_base = s_qty * s_rate
+                        s_gst_pct = GST_SLABS[s_gst_choice]
+                        s_gst_amt = (s_base * s_gst_pct) / 100.0 if s_gst_pct > 0 else 0.0
+                        s_final = s_base + s_gst_amt
+                        profit = s_final - (buy_rate_unit * s_qty)
+                        
+                        st.write(f"**Base Amount:** ₹{s_base:.2f} | **GST ({s_gst_choice}):** ₹{s_gst_amt:.2f}")
+                        st.write(f"### **Total Payable:** ₹ {s_final:.2f}")
+                        
+                        if st.button("🛒 Generate Counter Bill", type="primary"):
+                            if deduct_val <= float(sel_m[3]):
+                                inv_no = "RET-INV-" + "".join(random.choices(string.digits, k=6))
+                                run_query("UPDATE medical_store SET strips_count = strips_count - ? WHERE id=?", (deduct_val, sel_m[0]))
+                                run_query("""INSERT INTO transactions (shop_email, date, item_name, qty, total_price, profit, is_gst, trans_type, customer_name, customer_mobile, invoice_no, rate, gst_pct, gst_amt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (st.session_state.user_email, str(date.today()), sel_m[1], s_qty, s_final, profit, 1 if s_gst_pct > 0 else 0, 'Sale', cust_name, cust_mob, inv_no, s_rate, s_gst_pct, s_gst_amt))
+                                st.session_state.print_receipt_ms = generate_receipt_html(shop_name, sel_m[1], s_qty, s_rate, s_gst_pct, s_gst_amt, s_final, str(date.today()), shop_upi, cust_name, cust_mob, inv_no, s_base)
+                                st.rerun()
+                            else:
+                                st.error("Not enough stock!")
+                    else:
+                        st.info("No medicine stock available.")
+
+            with tab_hist:
+                st.subheader("🖨️ Bill History & Reprint")
+                history = run_query("SELECT invoice_no, date, customer_name, item_name, qty, rate, gst_pct, total_price, gst_amt, customer_mobile FROM transactions WHERE shop_email=? AND trans_type='Sale' ORDER BY id DESC LIMIT 50", (st.session_state.user_email,))
+                if history:
+                    history_clean = [h for h in history if h[0]]
+                    if history_clean:
+                        st.dataframe(pd.DataFrame(history_clean, columns=["Invoice No", "Date", "Customer", "Item", "Qty", "Rate", "GST %", "Total (₹)", "GST Amt", "Mob"])[["Invoice No", "Date", "Customer", "Item", "Total (₹)"]], use_container_width=True)
+                        c1, c2 = st.columns([2, 1])
+                        with c1: sel_inv = st.selectbox("🔍 Select Invoice to Reprint", [h[0] for h in history_clean])
+                        with c2:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            if st.button("🖨️ Reprint Selected Bill"):
+                                bill = [h for h in history_clean if h[0] == sel_inv][0]
+                                base_val = bill[5] * bill[4]
+                                st.session_state.reprint_receipt_ms = generate_receipt_html(shop_name, str(bill[3]).upper(), bill[4], bill[5] or 0.0, bill[6] or 0.0, bill[8] or 0.0, bill[7], str(bill[1]), shop_upi, str(bill[2]).upper(), bill[9], bill[0], base_val); st.rerun()
+                if "reprint_receipt_ms" in st.session_state:
+                    st.markdown("---"); st.success("✅ Bill Loaded for Reprint!"); components.html(st.session_state.reprint_receipt_ms, height=600)
+                    if st.button("❌ Close Reprint View"): del st.session_state.reprint_receipt_ms; st.rerun()
+
+            with tab_gst_rep:
+                st.subheader("📊 GST Filing & Balance Sheet")
+                gst_data = run_query("SELECT invoice_no, date, customer_name, total_price - gst_amt, gst_pct, gst_amt, total_price FROM transactions WHERE shop_email=? AND trans_type='Sale' AND is_gst=1", (st.session_state.user_email,))
+                if gst_data:
+                    df_gst = pd.DataFrame(gst_data, columns=["Invoice", "Date", "Customer", "Base Value (₹)", "GST %", "GST Amount (₹)", "Total Value (₹)"])
+                    st.dataframe(df_gst, use_container_width=True)
+                    tot_gst = df_gst["GST Amount (₹)"].sum()
+                    st.metric("Total GST Collected (Payable)", f"₹ {tot_gst:.2f}")
+                    components.html(generate_gst_report_html(df_gst, tot_gst, shop_name), height=100)
+                else: st.info("No GST sales found yet.")
 
         # 🛒 GENERAL SHOP / GROCERY
         else:

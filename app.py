@@ -24,7 +24,6 @@ def send_real_email(receiver_email, subject, body_text):
     msg['Subject'] = subject
     msg['From'] = f"Kulu Smart ERP <{sender_email}>"
     msg['To'] = receiver_email
-    
     try:
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=8)
         server.login(sender_email, app_password)
@@ -33,7 +32,6 @@ def send_real_email(receiver_email, subject, body_text):
         return True
     except Exception:
         pass
-        
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=8)
         server.starttls()
@@ -45,7 +43,7 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (7 TABLES - ZERO DATA LOSS)
+# 1. DATABASE SETUP (7 TABLES - ZERO DATA LOSS & AUTO-COLUMN FIX)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
@@ -94,7 +92,7 @@ def init_db():
         try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
         except: pass
 
-    # Medical Wholesaler Columns
+    # Medical Wholesaler Columns Auto-Add
     mw_cols = [
         ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
         ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0.0"),
@@ -105,7 +103,7 @@ def init_db():
         try: c.execute(f"ALTER TABLE medical_wholesaler ADD COLUMN {col} {dtype}")
         except: pass
 
-    # Medical Store Columns
+    # Medical Store Columns Auto-Add
     ms_cols = [
         ("strips_count", "REAL DEFAULT 0.0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
         ("purchase_price_strip", "REAL DEFAULT 0.0"), ("selling_price_strip", "REAL DEFAULT 0.0"),

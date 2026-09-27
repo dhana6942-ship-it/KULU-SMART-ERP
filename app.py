@@ -24,6 +24,7 @@ def send_real_email(receiver_email, subject, body_text):
     msg['Subject'] = subject
     msg['From'] = f"Kulu Smart ERP <{sender_email}>"
     msg['To'] = receiver_email
+    
     try:
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=8)
         server.login(sender_email, app_password)
@@ -32,6 +33,7 @@ def send_real_email(receiver_email, subject, body_text):
         return True
     except Exception:
         pass
+        
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=8)
         server.starttls()
@@ -43,35 +45,21 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (7 TABLES - ZERO DATA LOSS & AUTO-COLUMN FIX)
+# 1. DATABASE SETUP (7 TABLES - ZERO DATA LOSS & AUTO-FIX)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
     conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     
-    # 1. Users Table
     c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
-    
-    # 2. Admin Settings Table
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
-    
-    # 3. Inventory Table (Grocery / General)
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
-    
-    # 4. Transactions Table
     c.execute('''CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
-
-    # 5. Store Profiles
     c.execute('''CREATE TABLE IF NOT EXISTS store_profiles (id INTEGER PRIMARY KEY, shop_email TEXT UNIQUE, shop_name TEXT, contact_person TEXT, phone TEXT, address TEXT)''')
-
-    # 6. Medical Wholesaler Table
     c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
-
-    # 7. Medical Store Table
     c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
     
-    # Users Columns Auto-Add
     user_cols = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
         ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
@@ -92,7 +80,6 @@ def init_db():
         try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
         except: pass
 
-    # Medical Wholesaler Columns Auto-Add
     mw_cols = [
         ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
         ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0.0"),
@@ -103,7 +90,6 @@ def init_db():
         try: c.execute(f"ALTER TABLE medical_wholesaler ADD COLUMN {col} {dtype}")
         except: pass
 
-    # Medical Store Columns Auto-Add
     ms_cols = [
         ("strips_count", "REAL DEFAULT 0.0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
         ("purchase_price_strip", "REAL DEFAULT 0.0"), ("selling_price_strip", "REAL DEFAULT 0.0"),

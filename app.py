@@ -45,13 +45,14 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (7 TABLES - ZERO DATA LOSS & AUTO-FIX)
+# 1. DATABASE SETUP (FORCE COLUMN UPDATE)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
     conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     
+    # Create all tables first
     c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
@@ -59,7 +60,9 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS store_profiles (id INTEGER PRIMARY KEY, shop_email TEXT UNIQUE, shop_name TEXT, contact_person TEXT, phone TEXT, address TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
+    conn.commit()
     
+    # 🔴 FORCE UPDATE COLUMNS ONE BY ONE 🔴
     user_cols = [
         ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
         ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
@@ -67,7 +70,9 @@ def init_db():
         ("aadhar", "TEXT"), ("pan", "TEXT"), ("gst", "TEXT"), ("mobile", "TEXT")
     ]
     for col, dtype in user_cols:
-        try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+        try: 
+            c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+            conn.commit()
         except: pass 
         
     admin_cols = [
@@ -77,42 +82,57 @@ def init_db():
         ("home_banner", "BLOB")
     ]
     for col, dtype in admin_cols:
-        try: c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
+        try: 
+            c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
+            conn.commit()
         except: pass
 
+    # Fix Medical Wholesaler Error (Force Commit)
     mw_cols = [
         ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
-        ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0.0"),
-        ("selling_price_box", "REAL DEFAULT 0.0"), ("gst_rate", "REAL DEFAULT 0.0"),
+        ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0"),
+        ("selling_price_box", "REAL DEFAULT 0"), ("gst_rate", "REAL DEFAULT 0"),
         ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
     ]
     for col, dtype in mw_cols:
-        try: c.execute(f"ALTER TABLE medical_wholesaler ADD COLUMN {col} {dtype}")
+        try: 
+            c.execute(f"ALTER TABLE medical_wholesaler ADD COLUMN {col} {dtype}")
+            conn.commit()
         except: pass
 
+    # Fix Medical Store Error (Force Commit)
     ms_cols = [
-        ("strips_count", "REAL DEFAULT 0.0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
-        ("purchase_price_strip", "REAL DEFAULT 0.0"), ("selling_price_strip", "REAL DEFAULT 0.0"),
-        ("gst_rate", "REAL DEFAULT 0.0"), ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
+        ("strips_count", "REAL DEFAULT 0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
+        ("purchase_price_strip", "REAL DEFAULT 0"), ("selling_price_strip", "REAL DEFAULT 0"),
+        ("gst_rate", "REAL DEFAULT 0"), ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
     ]
     for col, dtype in ms_cols:
-        try: c.execute(f"ALTER TABLE medical_store ADD COLUMN {col} {dtype}")
+        try: 
+            c.execute(f"ALTER TABLE medical_store ADD COLUMN {col} {dtype}")
+            conn.commit()
         except: pass
 
-    try: c.execute("ALTER TABLE inventory ADD COLUMN barcode TEXT")
+    try: 
+        c.execute("ALTER TABLE inventory ADD COLUMN barcode TEXT")
+        conn.commit()
     except: pass
-    try: c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
+    try: 
+        c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
+        conn.commit()
     except: pass
     
     tx_cols = [("customer_name", "TEXT"), ("customer_mobile", "TEXT"), ("invoice_no", "TEXT"), ("rate", "REAL"), ("gst_pct", "REAL"), ("gst_amt", "REAL DEFAULT 0")]
     for col, dtype in tx_cols:
-        try: c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
+        try: 
+            c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
+            conn.commit()
         except: pass
 
     admin_hash = hash_pass('admin123')
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", ('Super Admin', 'dhana6942@gmail.com', admin_hash, 'SuperAdmin', 'Paid', 1, 0))
     try:
         c.execute("UPDATE users SET role='SuperAdmin', password=?, approved=1, payment_status='Paid', is_deleted=0 WHERE email='dhana6942@gmail.com'", (admin_hash,))
+        conn.commit()
     except: pass
     c.execute("INSERT OR IGNORE INTO admin_settings (id, upi_id, monthly_price, yearly_price, lifetime_price, soft_gst) VALUES (1, 'kulusutar@ybl', 499, 4999, 9999, 18)")
     conn.commit()

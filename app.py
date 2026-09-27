@@ -45,94 +45,71 @@ def send_real_email(receiver_email, subject, body_text):
         return False
 
 # ==========================================
-# 1. DATABASE SETUP (FORCE COLUMN UPDATE)
+# 1. DATABASE SETUP (100% CRASH-PROOF AUTO-UPDATER)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('kulu_erp_system.db', timeout=20)
     conn.execute('PRAGMA journal_mode=WAL;')
     c = conn.cursor()
     
-    # Create all tables first
+    # 1. Base Tables Creation
     c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT, role TEXT, payment_status TEXT, approved INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY, upi_id TEXT, monthly_price REAL, yearly_price REAL, lifetime_price REAL, soft_gst REAL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, shop_email TEXT, item_name TEXT, purchase_price REAL, selling_price REAL, stock INTEGER, gst_rate REAL, barcode TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, shop_email TEXT, date TEXT, item_name TEXT, qty INTEGER, total_price REAL, profit REAL, is_gst INTEGER, trans_type TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS store_profiles (id INTEGER PRIMARY KEY, shop_email TEXT UNIQUE, shop_name TEXT, contact_person TEXT, phone TEXT, address TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT, item_name TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS medical_wholesaler (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS medical_store (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_email TEXT)''')
     conn.commit()
-    
-    # 🔴 FORCE UPDATE COLUMNS ONE BY ONE 🔴
-    user_cols = [
-        ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
-        ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
-        ("upi_id", "TEXT"), ("owner_name", "TEXT"), ("pan_gst_no", "TEXT"), ("address", "TEXT"), ("state", "TEXT"),
-        ("aadhar", "TEXT"), ("pan", "TEXT"), ("gst", "TEXT"), ("mobile", "TEXT")
-    ]
-    for col, dtype in user_cols:
-        try: 
-            c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            conn.commit()
-        except: pass 
-        
-    admin_cols = [
-        ("demo_price", "REAL DEFAULT 99.0"), ("monthly_price", "REAL DEFAULT 499.0"), 
-        ("six_month_price", "REAL DEFAULT 2499.0"), ("yearly_price", "REAL DEFAULT 4999.0"), 
-        ("lifetime_price", "REAL DEFAULT 9999.0"), ("notice_text", "TEXT DEFAULT 'WELCOME TO KULU SMART ERP! PREMIUM POS SOFTWARE.'"), 
-        ("home_banner", "BLOB")
-    ]
-    for col, dtype in admin_cols:
-        try: 
-            c.execute(f"ALTER TABLE admin_settings ADD COLUMN {col} {dtype}")
-            conn.commit()
-        except: pass
 
-    # Fix Medical Wholesaler Error (Force Commit)
-    mw_cols = [
-        ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
-        ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0"),
-        ("selling_price_box", "REAL DEFAULT 0"), ("gst_rate", "REAL DEFAULT 0"),
-        ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
-    ]
-    for col, dtype in mw_cols:
-        try: 
-            c.execute(f"ALTER TABLE medical_wholesaler ADD COLUMN {col} {dtype}")
-            conn.commit()
-        except: pass
+    # 2. Dynamic Column Patcher (Safely adds columns if missing)
+    schema_updates = {
+        'users': [
+            ("utr_no", "TEXT"), ("paid_amount", "REAL"), ("package_type", "TEXT"), ("license_key", "TEXT"), 
+            ("is_deleted", "INTEGER DEFAULT 0"), ("shop_photo", "BLOB"), ("expiry_date", "TEXT"), ("key_entered", "INTEGER DEFAULT 0"),
+            ("upi_id", "TEXT"), ("owner_name", "TEXT"), ("pan_gst_no", "TEXT"), ("address", "TEXT"), ("state", "TEXT"),
+            ("aadhar", "TEXT"), ("pan", "TEXT"), ("gst", "TEXT"), ("mobile", "TEXT")
+        ],
+        'admin_settings': [
+            ("demo_price", "REAL DEFAULT 99.0"), ("monthly_price", "REAL DEFAULT 499.0"), 
+            ("six_month_price", "REAL DEFAULT 2499.0"), ("yearly_price", "REAL DEFAULT 4999.0"), 
+            ("lifetime_price", "REAL DEFAULT 9999.0"), ("notice_text", "TEXT DEFAULT 'WELCOME TO KULU SMART ERP! PREMIUM POS SOFTWARE.'"), 
+            ("home_banner", "BLOB")
+        ],
+        'inventory': [("barcode", "TEXT")],
+        'transactions': [
+            ("trans_type", "TEXT DEFAULT 'Sale'"), ("customer_name", "TEXT"), ("customer_mobile", "TEXT"), 
+            ("invoice_no", "TEXT"), ("rate", "REAL"), ("gst_pct", "REAL"), ("gst_amt", "REAL DEFAULT 0")
+        ],
+        'medical_wholesaler': [
+            ("item_name", "TEXT"), ("box_count", "INTEGER DEFAULT 0"), ("strips_per_box", "INTEGER DEFAULT 200"),
+            ("tablets_per_strip", "INTEGER DEFAULT 10"), ("purchase_price_box", "REAL DEFAULT 0.0"),
+            ("selling_price_box", "REAL DEFAULT 0.0"), ("gst_rate", "REAL DEFAULT 0.0"),
+            ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
+        ],
+        'medical_store': [
+            ("item_name", "TEXT"), ("strips_count", "REAL DEFAULT 0.0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
+            ("purchase_price_strip", "REAL DEFAULT 0.0"), ("selling_price_strip", "REAL DEFAULT 0.0"),
+            ("gst_rate", "REAL DEFAULT 0.0"), ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
+        ]
+    }
 
-    # Fix Medical Store Error (Force Commit)
-    ms_cols = [
-        ("strips_count", "REAL DEFAULT 0"), ("tablets_per_strip", "INTEGER DEFAULT 10"),
-        ("purchase_price_strip", "REAL DEFAULT 0"), ("selling_price_strip", "REAL DEFAULT 0"),
-        ("gst_rate", "REAL DEFAULT 0"), ("barcode", "TEXT DEFAULT ''"), ("updated_date", "TEXT DEFAULT ''")
-    ]
-    for col, dtype in ms_cols:
-        try: 
-            c.execute(f"ALTER TABLE medical_store ADD COLUMN {col} {dtype}")
-            conn.commit()
-        except: pass
+    for table, columns in schema_updates.items():
+        c.execute(f"PRAGMA table_info({table})")
+        existing_cols = [row[1] for row in c.fetchall()]
+        for col_name, col_type in columns:
+            if col_name not in existing_cols:
+                try:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+    conn.commit()
 
-    try: 
-        c.execute("ALTER TABLE inventory ADD COLUMN barcode TEXT")
-        conn.commit()
-    except: pass
-    try: 
-        c.execute("ALTER TABLE transactions ADD COLUMN trans_type TEXT DEFAULT 'Sale'")
-        conn.commit()
-    except: pass
-    
-    tx_cols = [("customer_name", "TEXT"), ("customer_mobile", "TEXT"), ("invoice_no", "TEXT"), ("rate", "REAL"), ("gst_pct", "REAL"), ("gst_amt", "REAL DEFAULT 0")]
-    for col, dtype in tx_cols:
-        try: 
-            c.execute(f"ALTER TABLE transactions ADD COLUMN {col} {dtype}")
-            conn.commit()
-        except: pass
-
+    # 3. Super Admin Init
     admin_hash = hash_pass('admin123')
     c.execute("INSERT OR IGNORE INTO users (name, email, password, role, payment_status, approved, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)", ('Super Admin', 'dhana6942@gmail.com', admin_hash, 'SuperAdmin', 'Paid', 1, 0))
     try:
         c.execute("UPDATE users SET role='SuperAdmin', password=?, approved=1, payment_status='Paid', is_deleted=0 WHERE email='dhana6942@gmail.com'", (admin_hash,))
-        conn.commit()
     except: pass
     c.execute("INSERT OR IGNORE INTO admin_settings (id, upi_id, monthly_price, yearly_price, lifetime_price, soft_gst) VALUES (1, 'kulusutar@ybl', 499, 4999, 9999, 18)")
     conn.commit()
@@ -333,7 +310,7 @@ if st.session_state.logged_in:
                 except Exception as e:
                     st.error("Backup file not found.")
 
-        # 🏢 MEDICAL WHOLESALER PORTAL (BOX -> STRIP -> TABLET & GST)
+        # 🏢 MEDICAL WHOLESALER PORTAL
         elif st.session_state.user_role == "MedWholesale":
             my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved, state FROM users WHERE email=?", (st.session_state.user_email,))[0]
             db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved, shop_state = my_data
@@ -406,7 +383,7 @@ if st.session_state.logged_in:
                 else:
                     st.info("No wholesale stock available.")
 
-        # 💊 MEDICAL STORE PORTAL (STRIP -> TABLET AUTO CALCULATION & GST)
+        # 💊 MEDICAL STORE PORTAL
         elif st.session_state.user_role == "MedStore":
             my_data = run_query("SELECT license_key, package_type, shop_photo, name, key_entered, expiry_date, upi_id, gst, approved, state FROM users WHERE email=?", (st.session_state.user_email,))[0]
             db_key, pkg_type, shop_photo, shop_name, key_entered, exp_date, shop_upi, shop_gst, approved, shop_state = my_data
@@ -420,7 +397,7 @@ if st.session_state.logged_in:
             tab_st_entry, tab_st_stock, tab_st_sales = st.tabs(["📥 Purchase (Add Medicine)", "📦 Pharmacy Live Stock", "🧾 Counter Sales POS"])
             
             with tab_st_entry:
-                st.subheader("📥 Medical Store Purchase Order (Strip & Tablet Calculation)")
+                st.subheader("📥 Medical Store Purchase Order")
                 with st.form("med_st_new_form"):
                     ms_name = st.text_input("Medicine Name")
                     c1, c2 = st.columns(2)
@@ -452,7 +429,7 @@ if st.session_state.logged_in:
                 st.subheader("🧾 Pharmacy Counter POS (Auto Strip & Tablet Deduction)")
                 st_items = run_query("SELECT id, item_name, selling_price_strip, strips_count, tablets_per_strip, gst_rate FROM medical_store WHERE shop_email=? AND strips_count > 0", (st.session_state.user_email,))
                 if st_items:
-                    st_item_dict = {f"{item[1]} (Stock: {item[3]} Strips) - ₹{item[2]}/Strip": item for item in st_items}
+                    st_item_dict = {f"{item[1]} (Stock: {item[3]:.1f} Strips) - ₹{item[2]}/Strip": item for item in st_items}
                     sel_st = st.selectbox("Select Medicine to Sell", list(st_item_dict.keys()))
                     sel_m = st_item_dict[sel_st]
                     

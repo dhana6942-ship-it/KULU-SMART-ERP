@@ -6,17 +6,15 @@ import speech_recognition as sr
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
-# ଟେମ୍ପରାରୀ ଫୋଲ୍ଡର
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
-st.set_page_config(page_title="100% Success Lyrical Video Maker", page_icon="🎬", layout="centered")
+st.set_page_config(page_title="Guaranteed Lyrical Video Maker", page_icon="🎬", layout="centered")
 
-st.title("🎬 Guaranteed Lyrical Video Maker 🎶")
-st.write("ଏହି ସିଷ୍ଟମ୍ ବିନା କୌଣସି Error ରେ ୧୦୦% ସଫଳତାର ସହ କାମ କରିବ!")
+st.title("🎬 100% Success Lyrical Video Maker 🎶")
+st.write("Video ane Song upload karo, ane live captions sathe instant video download karo!")
 st.markdown("---")
 
-# 🌍 ଦେଶ ଏବଂ ଭାଷା ଲିଷ୍ଟ୍
 country_language_map = {
     "India (ଭାରତ) 🇮🇳": {
         "English (ଇଂରାଜୀ)": "en-IN",
@@ -30,42 +28,42 @@ country_language_map = {
     }
 }
 
-selected_country = st.selectbox("🌍 ପ୍ରଥମେ ଦେଶ ବାଛନ୍ତୁ:", list(country_language_map.keys()))
+selected_country = st.selectbox("🌍 Prathme Desh Pasnd Karo:", list(country_language_map.keys()))
 lang_map = country_language_map[selected_country]
-target_language = st.selectbox(f"🗣️ ଗୀତର ଭାଷା ବାଛନ୍ତୁ:", list(lang_map.keys()))
+target_language = st.selectbox(f"🗣️ Geet ni Bhasha Pasnd Karo:", list(lang_map.keys()))
 lang_code = lang_map[target_language]
 
-uploaded_video = st.file_uploader("୧. ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ (MP4)", type=["mp4"])
+uploaded_video = st.file_uploader("1. Video upload karo (MP4)", type=["mp4"])
 if uploaded_video:
     st.video(uploaded_video)
 
-uploaded_audio = st.file_uploader("୨. ଗୀତ ବା ମ୍ୟୁଜିକ୍ ଅପଲୋଡ୍ କରନ୍ତୁ (MP3)", type=["mp3", "wav"])
+uploaded_audio = st.file_uploader("2. Geet/Music upload karo (MP3)", type=["mp3", "wav"])
 
-# === ImageMagick ବିନା ଟେକ୍ସଟ୍ (Lyrics) ବନେଇବାର ନୂଆ ଉପାୟ (100% Safe) ===
+# Navu option: Jo AI text na oolkhe to tame potanu custom lyrics pan aapi shako cho
+custom_lyrics_input = st.text_area("3. [Optional] Video upar shu lakhvu chhe tey ahi lakho (Jethi live caption pakko aave):", 
+                                  "Music is playing... Enjoy the status! 🎵")
+
 def create_text_image(text, video_size):
     width, height = video_size
-    # ଗୋଟିଏ ଖାଲି (Transparent) ଫଟୋ ବନେଇବା
     img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # ଫଣ୍ଟ ଲୋଡ୍ କରିବା
     font = None
     font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
     ]
     for path in font_paths:
         if os.path.exists(path):
-            font = ImageFont.truetype(path, 40)
+            font = ImageFont.truetype(path, 36)
             break
     if font is None:
         font = ImageFont.load_default()
         
-    # ଟେକ୍ସଟ୍ ପଛରେ ଥିବା କଳା ବ୍ୟାକଗ୍ରାଉଣ୍ଡ୍
-    bar_height = 100
-    draw.rectangle([(0, height - bar_height), (width, height)], fill=(0, 0, 0, 150))
+    bar_height = 90
+    draw.rectangle([(0, height - bar_height), (width, height)], fill=(0, 0, 0, 160))
     
-    # ଟେକ୍ସଟ୍ କୁ ମଝିରେ (Center) ରଖିବା
     try:
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
@@ -73,19 +71,17 @@ def create_text_image(text, video_size):
     except:
         tw, th = draw.textsize(text, font=font)
         
-    x = (width - tw) / 2
+    x = max(10, (width - tw) / 2)
     y = height - bar_height + (bar_height - th) / 2
     
-    # ହଳଦିଆ ରଙ୍ଗରେ ଟେକ୍ସଟ୍ ଲେଖିବା
     draw.text((x, y), text, font=font, fill="yellow")
     return np.array(img)
-# =================================================================
 
-if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ 🚀"):
+if st.button("Auto Lyrical Video Banavo 🚀"):
     if uploaded_video and uploaded_audio:
         try:
             status_text = st.empty()
-            status_text.info("ଭିଡିଓ ପ୍ରସ୍ତୁତ ହେଉଛି...")
+            status_text.info("Video process thai rahyo chhe...")
             progress_bar = st.progress(10)
 
             vid_path = os.path.join("temp", "input_vid.mp4")
@@ -107,42 +103,44 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
 
             video_clip = video_clip.set_audio(audio_clip)
             
-            status_text.info(f"ଗୀତରୁ ଲେଖା ବାହାର କରାଯାଉଛି...")
+            status_text.info("Audio mathi text generate thay che...")
             progress_bar.progress(50)
 
             temp_wav_path = os.path.join("temp", "temp_audio.wav")
             audio_clip.write_audiofile(temp_wav_path, logger=None)
 
-            recognizer = sr.Recognizer()
             extracted_lyrics = ""
-            with sr.AudioFile(temp_wav_path) as source:
-                audio_data = recognizer.record(source)
-                try:
+            try:
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(temp_wav_path) as source:
+                    audio_data = recognizer.record(source)
                     extracted_lyrics = recognizer.recognize_google(audio_data, language=lang_code)
-                except Exception:
-                    extracted_lyrics = ""
+            except Exception:
+                extracted_lyrics = ""
 
+            # Jo AI text na pakde, to user e lakhele custom text use thase
             if not extracted_lyrics.strip():
-                extracted_lyrics = "Music is playing... Enjoy!"
+                extracted_lyrics = custom_lyrics_input
 
-            status_text.info("ଭିଡିଓ ଉପରେ Live Captions ଲଗାଯାଉଛି (ବିନା Error ରେ)...")
+            status_text.info("Live Captions video upar set thai rahya chhe...")
             progress_bar.progress(70)
 
             words = extracted_lyrics.split()
-            chunk_size = 4
+            chunk_size = 5
             lines = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
+            if not lines:
+                lines = [custom_lyrics_input]
             
             clips = [video_clip]
             
             if lines:
                 line_duration = duration / len(lines)
                 for i, line in enumerate(lines):
-                    # ଏଠାରେ ଆମେ ତିଆରି କରିଥିବା ନିରାପଦ (Safe) ଉପାୟ ବ୍ୟବହାର କରୁଛୁ
                     txt_img = create_text_image(line, video_clip.size)
                     txt_clip = ImageClip(txt_img).set_start(i * line_duration).set_duration(line_duration)
                     clips.append(txt_clip)
 
-            status_text.info("ଫାଇନାଲ୍ ଭିଡିଓ ରେଡି ହେଉଛି...")
+            status_text.info("Final video ready thay che...")
             progress_bar.progress(85)
 
             final_video = CompositeVideoClip(clips)
@@ -153,22 +151,24 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             progress_bar.progress(100)
             status_text.empty()
             
-            st.success("🎉 ସଫଳତା! ବିନା କୌଣସି Error ରେ ଆପଣଙ୍କ ଭିଡିଓ ପ୍ରସ୍ତୁତ ହୋଇଯାଇଛି!")
+            st.success("🎉 Safalata! Tamaro Lyrical Status Video ready chhe!")
             st.balloons()
+
+            st.info(f"🎤 Display thata lyrics: {extracted_lyrics}")
 
             with open(output_path, "rb") as file:
                 video_bytes = file.read()
             
-            st.markdown("### 🎬 ଫାଇନାଲ୍ ଭିଡିଓ ଦେଖନ୍ତୁ:")
+            st.markdown("### 🎬 Final Video View Karo:")
             st.video(video_bytes)
 
-            st.download_button("⬇️️ ଭିଡିଓ ଡାଉନଲୋଡ୍ କରନ୍ତୁ", data=video_bytes, file_name="safe_lyrical_status.mp4", mime="video/mp4")
+            st.download_button("⬇️️ Video Download Karo", data=video_bytes, file_name="lyrical_status.mp4", mime="video/mp4")
 
             video_clip.close()
             audio_clip.close()
             final_video.close()
 
         except Exception as e:
-            st.error(f"❌ କିଛି ଅସୁବିଧା ହେଲା: {e}")
+            st.error(f"❌ Kichi asuvidha thae chhe: {e}")
     else:
-        st.error("ଦୟାକରି ଭିଡିଓ ଏବଂ ଗୀତ ଅପଲୋଡ୍ କରନ୍ତୁ।")
+        st.error("Krupaya Video ane Audio banne upload karo.")

@@ -1,16 +1,17 @@
 import streamlit as st
 import os
+import time
 from moviepy.editor import VideoFileClip, AudioFileClip
 import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from gtts import gTTS
 
-# ୱେବସାଇଟ୍ ର ଟାଇଟଲ୍ ଏବଂ ଡିଜାଇନ୍
-st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="centered")
-
-# ଭିଡିଓ ସେଭ୍ କରିବା ପାଇଁ ଗୋଟିଏ ଟେମ୍ପରାରୀ (temp) ଫୋଲ୍ଡର ତିଆରି କରିବା ଯଦି ନାହିଁ
+# ଟେମ୍ପରାରୀ ଫାଇଲ୍ ସେଭ୍ କରିବା ପାଇଁ ଗୋଟିଏ ଫୋଲ୍ଡର ବନେଇବା
 if not os.path.exists("temp"):
     os.makedirs("temp")
+
+# ୱେବସାଇଟ୍ ର ଟାଇଟଲ୍ ଏବଂ ଡିଜାଇନ୍
+st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="centered")
 
 # --- ଲାଇସେନ୍ସ କି ଏବଂ ଡେମୋ ସିଷ୍ଟମ୍ (Sidebar) ---
 st.sidebar.header("🔑 License Activation")
@@ -80,9 +81,22 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
                     extracted_text = "Sorry, audio was not clear."
             progress_bar.progress(60)
             
-            # ୪. ଭାଷା ଅନୁବାଦ (Translation)
-            status_text.text(f"୪/୫: ଲେଖାକୁ {target_language} ରେ ଅନୁବାଦ କରାଯାଉଛି...")
-            translated_text = GoogleTranslator(source='auto', target=lang_code).translate(extracted_text)
+            # ୪. ଭାଷା ଅନୁବାଦ (Translation) - ଗୁଗୁଲ୍ Error ରୁ ବଞ୍ଚିବା ପାଇଁ ଅପଡେଟ୍
+            status_text.text(f"୪/୫: ଲେଖାକୁ {target_language} ରେ ଅନୁବାଦ କରାଯାଉଛି (ଟିକେ ସମୟ ଲାଗିବ)...")
+            
+            chunk_size = 1500 
+            text_chunks = [extracted_text[i:i+chunk_size] for i in range(0, len(extracted_text), chunk_size)]
+            
+            translated_text = ""
+            translator = GoogleTranslator(source='auto', target=lang_code)
+            
+            for chunk in text_chunks:
+                try:
+                    translated_text += translator.translate(chunk) + " "
+                    time.sleep(2)  # Server Error ରୁ ବଞ୍ଚିବା ପାଇଁ ୨ ସେକେଣ୍ଡ ଅପେକ୍ଷା
+                except Exception as e:
+                    print("Translation chunk error:", e)
+                    
             progress_bar.progress(80)
             
             # ୫. ନୂଆ ଭାଷାରେ ଅଡିଓ ବନେଇବା ଓ ଭିଡିଓରେ ଯୋଡ଼ିବା

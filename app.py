@@ -28,7 +28,7 @@ elif user_key != "":
     st.sidebar.error("❌ Invalid Key! Please try again.")
 
 if not is_pro_user:
-    st.sidebar.warning("⚠️️ Demo Mode Active (Max 5 mins)")
+    st.sidebar.warning("⚠️ Demo Mode Active (Max 5 mins)")
 
 # --- ମୁଖ୍ୟ ଡ୍ୟାସବୋର୍ଡ ---
 st.title("🎥 AI Video Translation & Dubbing")
@@ -125,6 +125,11 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             
             st.success("🎉 ଆପଣଙ୍କ ଭିଡିଓ ସଫଳତାର ସହ କନଭର୍ଟ ହୋଇଯାଇଛି!")
             st.balloons()
+            
+            # --- AI କ'ଣ କାମ କଲା ତାହା ସ୍କ୍ରିନରେ ଦେଖାଇବା ପାଇଁ ନୂଆ ଅପଡେଟ୍ ---
+            st.info(f"📝 AI ଧରିଥିବା ଲେଖା: {extracted_text}")
+            st.warning(f"🗣️ ନୂଆ ଅନୁବାଦ: {translated_text}")
+            # -------------------------------------------------------------
             
             with open(final_video_path, "rb") as file:
                 video_bytes = file.read()

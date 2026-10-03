@@ -1,4 +1,5 @@
 import streamlit as st
+import time  # ପ୍ରୋଗ୍ରେସ୍ ବାର୍ ର ସମୟ ଦେଖାଇବା ପାଇଁ
 
 # ୱେବସାଇଟ୍ ର ଟାଇଟଲ୍ ଏବଂ ଡିଜାଇନ୍
 st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="centered")
@@ -7,10 +8,7 @@ st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="
 st.sidebar.header("🔑 License Activation")
 st.sidebar.write("ଲମ୍ବା ଭିଡିଓ ପାଇଁ ପ୍ରୋ-କି (Pro Key) ବ୍ୟବହାର କରନ୍ତୁ।")
 
-# ୟୁଜର୍ ଲାଇସେନ୍ସ କି ଏଣ୍ଟର୍ କରିବେ (ପାସୱାର୍ଡ ଭଳି ଲୁଚି ରହିବ)
 user_key = st.sidebar.text_input("Enter License Key:", type="password")
-
-# ଏହା ହେଉଛି ଆପଣଙ୍କର ସିକ୍ରେଟ୍ ଲାଇସେନ୍ସ କି
 VALID_PRO_KEY = "KULU-PRO-2026"
 
 is_pro_user = False
@@ -30,7 +28,6 @@ st.markdown("---")
 
 st.subheader("ଭିଡିଓର ସମୟସୀମା ବାଛନ୍ତୁ:")
 
-# ଲାଇସେନ୍ସ ଅନୁସାରେ ଅପ୍ସନ୍ ଦେଖାଇବା
 if is_pro_user:
     video_duration = st.radio(
         "ଆପଣଙ୍କ ଭିଡିଓ କେତେ ଲମ୍ବା ଅଟେ? (Pro Access)",
@@ -43,7 +40,6 @@ else:
     )
     st.info("💡 ୪ ଘଣ୍ଟା ପର୍ଯ୍ୟନ୍ତ ଭିଡିଓ ଅପଲୋଡ୍ କରିବାକୁ ଏବଂ ସବୁ ଭାଷା ପାଇବାକୁ ଲାଇସେନ୍ସ କି (License Key) ବ୍ୟବହାର କରନ୍ତୁ।")
 
-# ଭିଡିଓ ଲମ୍ବ ଅନୁସାରେ ଭାଷା ବାଛିବା
 if "୪ ଘଣ୍ଟା" in video_duration:
     language_options = ("English (ଇଂରାଜୀ)", "Spanish (ସ୍ପାନିସ୍)", "French (ଫ୍ରେଞ୍ଚ)", "German (ଜର୍ମାନ)", "Arabic (ଆରବିକ୍)", "ଓଡ଼ିଆ (Odia)", "ହିନ୍ଦୀ (Hindi)")
 else:
@@ -53,18 +49,46 @@ target_language = st.selectbox("ଆପଣ ଭିଡିଓଟିକୁ କେଉ�
 
 st.markdown("---")
 
-# ଭିଡିଓ ଅପଲୋଡ୍
 uploaded_video = st.file_uploader("ଏଠାରେ ଆପଣଙ୍କ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ (mp4, mov)", type=["mp4", "mov"])
 
-# କନଭର୍ଟ ବଟନ୍
+# --- କନଭର୍ଟ ବଟନ୍ ଏବଂ ପ୍ରୋସେସିଂ ଲୋଡିଂ ---
 if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
     if uploaded_video is not None:
         st.success("ଭିଡିଓ ସଫଳତାର ସହ ଅପଲୋଡ୍ ହେଲା!")
+        
         if is_pro_user:
             st.info(f"✨ Pro Processing Mode: {video_duration}")
         else:
             st.info(f"⚙️ Demo Processing Mode: {video_duration}")
             
         st.warning(f"ଭିଡିଓଟିକୁ {target_language} ଭାଷାରେ ପରିବର୍ତ୍ତନ କରାଯାଉଛି... ଦୟାକରି ଅପେକ୍ଷା କରନ୍ତୁ।")
+        
+        # ୧. ପ୍ରୋସେସିଂ ଆନିମେସନ୍ (Progress Bar)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for percent_complete in range(100):
+            time.sleep(0.05) # ଏହା କେବଳ ଦେଖାଇବା ପାଇଁ ୫ ସେକେଣ୍ଡର ଲୋଡିଂ ନେବ
+            progress_bar.progress(percent_complete + 1)
+            status_text.text(f"ପ୍ରୋସେସିଂ ଚାଲିଛି... {percent_complete + 1}%")
+            
+        status_text.empty()
+        progress_bar.empty()
+        
+        st.success("🎉 ଆପଣଙ୍କ ଭିଡିଓ ସଫଳତାର ସହ କନଭର୍ଟ ହୋଇଯାଇଛି!")
+        st.balloons() # ଖୁସି ପାଳନ ପାଇଁ ବେଲୁନ୍ ଆନିମେସନ୍
+        
+        # ୨. କନଭର୍ଟ ହୋଇଥିବା ଭିଡିଓ ଦେଖିବା (View Video)
+        st.markdown("### 🎬 ଆପଣଙ୍କ ନୂଆ ଭିଡିଓ ଏଠାରେ ଦେଖନ୍ତୁ:")
+        st.video(uploaded_video) # (ଏବେ ପାଇଁ ଆମେ ଡେମୋ ହିସାବରେ ସେହି ଅପଲୋଡ୍ ହୋଇଥିବା ଭିଡିଓ ହିଁ ଦେଖାଉଛୁ)
+        
+        # ୩. ଡାଉନଲୋଡ୍ ବଟନ୍ (Download Option)
+        st.download_button(
+            label="⬇️ କନଭର୍ଟ ହୋଇଥିବା ଭିଡିଓ ଡାଉନଲୋଡ୍ କରନ୍ତୁ",
+            data=uploaded_video,
+            file_name=f"dubbed_video_{target_language}.mp4",
+            mime="video/mp4"
+        )
+        
     else:
         st.error("ଦୟାକରି ପ୍ରଥମେ ଗୋଟିଏ ଭିଡିଓ ଫାଇଲ୍ ଅପଲୋଡ୍ କରନ୍ତୁ।")

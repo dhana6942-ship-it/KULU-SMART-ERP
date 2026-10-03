@@ -12,23 +12,6 @@ if not os.path.exists("temp"):
 
 st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="centered")
 
-# --- ଲାଇସେନ୍ସ କି ---
-st.sidebar.header("🔑 License Activation")
-st.sidebar.write("ଲମ୍ବା ଭିଡିଓ ପାଇଁ ପ୍ରୋ-କି (Pro Key) ବ୍ୟବହାର କରନ୍ତୁ।")
-
-user_key = st.sidebar.text_input("Enter License Key:", type="password")
-VALID_PRO_KEY = "KULU-PRO-2026"
-
-is_pro_user = False
-if user_key == VALID_PRO_KEY:
-    st.sidebar.success("✅ Pro Version Activated!")
-    is_pro_user = True
-elif user_key != "":
-    st.sidebar.error("❌ Invalid Key! Please try again.")
-
-if not is_pro_user:
-    st.sidebar.warning("⚠️ Demo Mode Active (Max 5 mins)")
-
 # --- ମୁଖ୍ୟ ଡ୍ୟାସବୋର୍ଡ ---
 st.title("🎥 AI Video Translation & Dubbing")
 st.write("ଗୋଟିଏ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ ଆଉ ଯେକୌଣସି ଭାଷାରେ ବଦଳାନ୍ତୁ!")
@@ -88,7 +71,6 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             
             try:
                 translator = GoogleTranslator(source='auto', target=lang_code)
-                # ଯଦି ଲେଖା ଛୋଟ ଅଛି, ସିଧା ଅନୁବାଦ କରିବ (Error ଆସିବ ନାହିଁ)
                 if len(extracted_text) < 3000:
                     translated_text = translator.translate(extracted_text)
                 else:
@@ -97,21 +79,30 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
                         translated_text += translator.translate(chunk) + " "
                         time.sleep(1)
             except Exception as e:
-                # ଯଦି ଗୁଗୁଲ୍ ସର୍ଭର ବ୍ୟସ୍ତ ଥିବ, ତେବେ ମୂଳ ଭାଷାରେ ନୁହେଁ, ବରଂ ନୂଆ ଭାଷାରେ ହିଁ କହିବ ଯେ ସର୍ଭର ବ୍ୟସ୍ତ ଅଛି। 
-                translated_text = "ଅନୁବାଦ ସମ୍ଭବ ହେଲା ନାହିଁ ଦୟାକରି ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ।" if lang_code == 'or' else "Translation server is busy right now."
+                translated_text = "ଅନୁବାଦ ସମ୍ଭବ ହେଲା ନାହିଁ।" if lang_code == 'or' else "Translation server is busy right now."
                     
             progress_bar.progress(80)
             
-            # ୫. ନୂଆ ଭିଡିଓ ତିଆରି (PURA DUBBING)
+            # ୫. ନୂଆ ଭିଡିଓ ତିଆରି
             status_text.text("୫/୫: ନୂଆ ଭିଡିଓ ପ୍ରସ୍ତୁତ କରାଯାଉଛି...")
             new_audio_path = os.path.join("temp", f"new_audio_{lang_code}.mp3")
             
+            # ନୂଆ ସାଉଣ୍ଡ୍ ସେଭ୍ କରିବା 
             tts = gTTS(text=translated_text, lang=lang_code, slow=False)
             tts.save(new_audio_path)
             
-            new_audio_clip = AudioFileClip(new_audio_path)
+            st.success("🎉 ପ୍ରୋସେସ୍ ଶେଷ ହୋଇଛି! ତଳେ ରେଜଲ୍ଟ ଦେଖନ୍ତୁ।")
+            st.balloons()
             
-            # ଏଥର ପୁରୁଣା ଭଏସ୍ କୁ ପୂରା କାଟିଦେବୁ ଏବଂ କେବଳ ନୂଆ AI ଭଏସ୍ କୁ ଲଗାଇବୁ
+            st.info(f"📝 AI ଧରିଥିବା ଲେଖା: {extracted_text}")
+            st.warning(f"🗣️ ନୂଆ ଅନୁବାଦ: {translated_text}")
+
+            # --- ନୂଆ ଟେଷ୍ଟିଂ (କେବଳ ଅଡିଓ ପ୍ଲେୟାର୍) ---
+            st.markdown("### 🎵 ପ୍ରଥମେ କେବଳ ନୂଆ ଅଡିଓ ଶୁଣନ୍ତୁ (AI Voice):")
+            st.audio(new_audio_path, format="audio/mp3")
+            st.markdown("---")
+            
+            new_audio_clip = AudioFileClip(new_audio_path)
             final_video = video.set_audio(new_audio_clip)
             
             final_video_path = os.path.join("temp", "final_output_video.mp4")
@@ -120,12 +111,7 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             progress_bar.progress(100)
             status_text.empty()
             
-            st.success("🎉 ଆପଣଙ୍କ ଭିଡିଓ ସଫଳତାର ସହ କନଭର୍ଟ ହୋଇଯାଇଛି!")
-            st.balloons()
-            
-            st.info(f"📝 AI ଧରିଥିବା ଲେଖା: {extracted_text}")
-            st.warning(f"🗣️ ନୂଆ ଅନୁବାଦ: {translated_text}")
-            
+            st.markdown("### 🎬 ନୂଆ ଭିଡିଓ ଦେଖନ୍ତୁ:")
             with open(final_video_path, "rb") as file:
                 video_bytes = file.read()
                 

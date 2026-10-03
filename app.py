@@ -1,9 +1,9 @@
 import streamlit as st
 import os
 import time
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
+from moviepy.editor import VideoFileClip, AudioFileClip
 import speech_recognition as sr
-from deep_translator import GoogleTranslator, MyMemoryTranslator
+from deep_translator import GoogleTranslator
 from gtts import gTTS
 
 # ଟେମ୍ପରାରୀ ଫାଇଲ୍ ସେଭ୍ କରିବା ପାଇଁ ଫୋଲ୍ଡର
@@ -79,45 +79,40 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
                     extracted_text = ""
             
             if not extracted_text.strip():
-                extracted_text = "Hello, testing audio."
+                extracted_text = "Welcome to my video. Have a nice day."
             progress_bar.progress(60)
             
-            # ୪. ଅନୁବାଦ (Translation) - ବ୍ୟାକଅପ୍ ଟ୍ରାନ୍ସଲେଟର୍ ସହ
-            status_text.text(f"୪/୫: ଲେଖାକୁ ଅନୁବାଦ କରାଯାଉଛି...")
+            # ୪. ଅନୁବାଦ (Translation)
+            status_text.text(f"୪/୫: ଲେଖାକୁ {target_language} ରେ ଅନୁବାଦ କରାଯାଉଛି...")
             translated_text = ""
-            final_lang = lang_code
             
             try:
-                # ପ୍ରଥମେ ଗୁଗୁଲ୍ ଟ୍ରାଏ କରିବ
-                translated_text = GoogleTranslator(source='auto', target=lang_code).translate(extracted_text)
-            except Exception:
-                try:
-                    # ଗୁଗୁଲ୍ ଫେଲ୍ ହେଲେ MyMemory ସର୍ଭର ବ୍ୟବହାର କରିବ
-                    translated_text = MyMemoryTranslator(source='en', target=lang_code).translate(extracted_text)
-                except Exception:
-                    translated_text = ""
-                
-            # ଯଦି ଉଭୟ ସର୍ଭର ଫେଲ୍ ହୁଏ, ତେବେ ମୂଳ ଇଂରାଜୀ ଭାଷାରେ ଭଏସ୍ ଦେବ
-            if not translated_text.strip():
-                st.warning("⚠️ ସର୍ଭର ବ୍ୟସ୍ତ ଅଛି। ମୂଳ ଭାଷାରେ ନୂଆ ଭଏସ୍ ଦିଆଯାଉଛି...")
-                translated_text = extracted_text
-                final_lang = 'en'
+                translator = GoogleTranslator(source='auto', target=lang_code)
+                # ଯଦି ଲେଖା ଛୋଟ ଅଛି, ସିଧା ଅନୁବାଦ କରିବ (Error ଆସିବ ନାହିଁ)
+                if len(extracted_text) < 3000:
+                    translated_text = translator.translate(extracted_text)
+                else:
+                    text_chunks = [extracted_text[i:i+1500] for i in range(0, len(extracted_text), 1500)]
+                    for chunk in text_chunks:
+                        translated_text += translator.translate(chunk) + " "
+                        time.sleep(1)
+            except Exception as e:
+                # ଯଦି ଗୁଗୁଲ୍ ସର୍ଭର ବ୍ୟସ୍ତ ଥିବ, ତେବେ ମୂଳ ଭାଷାରେ ନୁହେଁ, ବରଂ ନୂଆ ଭାଷାରେ ହିଁ କହିବ ଯେ ସର୍ଭର ବ୍ୟସ୍ତ ଅଛି। 
+                translated_text = "ଅନୁବାଦ ସମ୍ଭବ ହେଲା ନାହିଁ ଦୟାକରି ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ।" if lang_code == 'or' else "Translation server is busy right now."
                     
             progress_bar.progress(80)
             
-            # ୫. ନୂଆ ଭିଡିଓ ତିଆରି ଏବଂ ଅଡିଓ ମିକ୍ସ (Audio Mix)
+            # ୫. ନୂଆ ଭିଡିଓ ତିଆରି (PURA DUBBING)
             status_text.text("୫/୫: ନୂଆ ଭିଡିଓ ପ୍ରସ୍ତୁତ କରାଯାଉଛି...")
-            new_audio_path = os.path.join("temp", f"new_audio_{final_lang}.mp3")
+            new_audio_path = os.path.join("temp", f"new_audio_{lang_code}.mp3")
             
-            tts = gTTS(text=translated_text, lang=final_lang, slow=False)
+            tts = gTTS(text=translated_text, lang=lang_code, slow=False)
             tts.save(new_audio_path)
             
             new_audio_clip = AudioFileClip(new_audio_path)
-            original_audio = video.audio
             
-            # ଏଠାରେ ପୁରୁଣା ବ୍ୟାକଗ୍ରାଉଣ୍ଡ୍ ସାଉଣ୍ଡ୍ ସହିତ ନୂଆ ଭଏସ୍ କୁ ମିକ୍ସ କରାଯାଉଛି (ଭିଡିଓ ଆଉ ସାଇଲେଣ୍ଟ୍ ହେବ ନାହିଁ)
-            final_audio = CompositeAudioClip([original_audio, new_audio_clip])
-            final_video = video.set_audio(final_audio)
+            # ଏଥର ପୁରୁଣା ଭଏସ୍ କୁ ପୂରା କାଟିଦେବୁ ଏବଂ କେବଳ ନୂଆ AI ଭଏସ୍ କୁ ଲଗାଇବୁ
+            final_video = video.set_audio(new_audio_clip)
             
             final_video_path = os.path.join("temp", "final_output_video.mp4")
             final_video.write_videofile(final_video_path, codec="libx264", audio_codec="aac", logger=None)
@@ -136,7 +131,7 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
                 
             st.video(video_bytes)
             st.download_button(
-                label=f"⬇️ ନୂଆ ଭିଡିଓ ଡାଉନଲୋଡ୍ କରନ୍ତୁ",
+                label=f"⬇️ ନୂଆ {target_language} ଭିଡିଓ ଡାଉନଲୋଡ୍ କରନ୍ତୁ",
                 data=video_bytes,
                 file_name=f"dubbed_video.mp4",
                 mime="video/mp4"

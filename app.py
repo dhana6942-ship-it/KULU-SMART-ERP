@@ -28,7 +28,7 @@ elif user_key != "":
     st.sidebar.error("❌ Invalid Key! Please try again.")
 
 if not is_pro_user:
-    st.sidebar.warning("⚠️ Demo Mode Active (Max 5 mins)")
+    st.sidebar.warning("⚠️️ Demo Mode Active (Max 5 mins)")
 
 # --- ମୁଖ୍ୟ ଡ୍ୟାସବୋର୍ଡ ---
 st.title("🎥 AI Video Translation & Dubbing")
@@ -73,15 +73,21 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             # ୩. ଅଡିଓରୁ ଲେଖା (Speech to Text)
             status_text.text("୩/୫: ଅଡିଓକୁ ଲେଖାରେ ପରିଣତ କରାଯାଉଛି...")
             recognizer = sr.Recognizer()
+            extracted_text = ""
             with sr.AudioFile(audio_path) as source:
                 audio_data = recognizer.record(source)
                 try:
                     extracted_text = recognizer.recognize_google(audio_data)
-                except sr.UnknownValueError:
-                    extracted_text = "Sorry, audio was not clear."
+                except Exception:
+                    extracted_text = ""
+            
+            # ଯଦି କିଛି କଥା ମିଳିଲା ନାହିଁ ତେବେ ଡିଫଲ୍ଟ ଭଏସ୍ ଦେବା
+            if not extracted_text.strip():
+                extracted_text = "There is no clear speech detected in this video."
+
             progress_bar.progress(60)
             
-            # ୪. ଭାଷା ଅନୁବାଦ (Translation) - ଗୁଗୁଲ୍ Error ରୁ ବଞ୍ଚିବା ପାଇଁ ଅପଡେଟ୍
+            # ୪. ଭାଷା ଅନୁବାଦ (Translation)
             status_text.text(f"୪/୫: ଲେଖାକୁ {target_language} ରେ ଅନୁବାଦ କରାଯାଉଛି (ଟିକେ ସମୟ ଲାଗିବ)...")
             
             chunk_size = 1500 
@@ -93,15 +99,19 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             for chunk in text_chunks:
                 try:
                     translated_text += translator.translate(chunk) + " "
-                    time.sleep(2)  # Server Error ରୁ ବଞ୍ଚିବା ପାଇଁ ୨ ସେକେଣ୍ଡ ଅପେକ୍ଷା
+                    time.sleep(2) 
                 except Exception as e:
                     print("Translation chunk error:", e)
+                    
+            if not translated_text.strip():
+                translated_text = "ଅନୁବାଦ ସମ୍ଭବ ହେଲା ନାହିଁ।" if lang_code == 'or' else "Translation failed."
                     
             progress_bar.progress(80)
             
             # ୫. ନୂଆ ଭାଷାରେ ଅଡିଓ ବନେଇବା ଓ ଭିଡିଓରେ ଯୋଡ଼ିବା
             status_text.text("୫/୫: ନୂଆ ଭିଡିଓ ପ୍ରସ୍ତୁତ କରାଯାଉଛି (ଟିକେ ସମୟ ଲାଗିବ)...")
             new_audio_path = os.path.join("temp", f"new_audio_{lang_code}.mp3")
+            
             tts = gTTS(text=translated_text, lang=lang_code, slow=False)
             tts.save(new_audio_path)
             
@@ -109,7 +119,6 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             final_video = video.set_audio(new_audio_clip)
             final_video_path = os.path.join("temp", "final_output_video.mp4")
             
-            # ଫାଇନାଲ୍ ଭିଡିଓ ସେଭ୍ କରିବା
             final_video.write_videofile(final_video_path, codec="libx264", audio_codec="aac", logger=None)
             progress_bar.progress(100)
             status_text.empty()
@@ -117,7 +126,6 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             st.success("🎉 ଆପଣଙ୍କ ଭିଡିଓ ସଫଳତାର ସହ କନଭର୍ଟ ହୋଇଯାଇଛି!")
             st.balloons()
             
-            # ଡାଉନଲୋଡ୍ ଅପ୍ସନ୍ ଏବଂ ଭିଡିଓ ପ୍ଲେୟାର୍
             with open(final_video_path, "rb") as file:
                 video_bytes = file.read()
                 
@@ -130,7 +138,6 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
                 mime="video/mp4"
             )
             
-            # ବ୍ୟବହାର ହୋଇଥିବା ଫାଇଲ୍ ଗୁଡ଼ିକୁ ବନ୍ଦ କରିବା 
             video.close()
             new_audio_clip.close()
             final_video.close()

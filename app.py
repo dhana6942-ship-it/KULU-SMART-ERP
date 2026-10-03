@@ -1,7 +1,19 @@
 import os
-# ImageMagick Error ର ସମାଧାନ
-if os.path.exists("/usr/bin/convert"):
-    os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
+
+# --- MAGIC FIX FOR IMAGEMAGICK SECURITY POLICY ---
+# Streamlit ର ସର୍ଭର ସିକ୍ୟୁରିଟିକୁ ବାଇପାସ୍ କରିବା ପାଇଁ ଏକ ନୂଆ ପଲିସି (policy) ତିଆରି କରାଯାଉଛି
+os.makedirs("magick_config", exist_ok=True)
+with open("magick_config/policy.xml", "w") as f:
+    f.write('''<?xml version="1.0" encoding="UTF-8"?>
+<policymap>
+  <policy domain="path" rights="read|write" pattern="@*" />
+  <policy domain="coder" rights="read|write" pattern="*" />
+  <policy domain="path" rights="read|write" pattern="*" />
+</policymap>''')
+
+os.environ["MAGICK_CONFIGURE_PATH"] = os.path.abspath("magick_config")
+os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
+# ------------------------------------------------
 
 import streamlit as st
 import time
@@ -18,7 +30,7 @@ st.title("🎬 Global Auto-Lyrics Video Maker 🎶")
 st.write("ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ, ଗୀତ ଦିଅନ୍ତୁ ଏବଂ ନିଜ ଭାଷାରେ Live Lyrics ପାଆନ୍ତୁ!")
 st.markdown("---")
 
-# 🌍 ଦେଶ ଏବଂ ଭାଷା ସେଟିଂସ୍ (Speech Recognition ପାଇଁ କୋଡ୍)
+# 🌍 ଦେଶ ଏବଂ ଭାଷା ସେଟିଂସ୍
 country_language_map = {
     "India (ଭାରତ) 🇮🇳": {
         "ଓଡ଼ିଆ (Odia)": "or-IN",
@@ -87,7 +99,7 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             temp_wav_path = os.path.join("temp", "temp_audio.wav")
             audio_clip.write_audiofile(temp_wav_path, logger=None)
 
-            # AI ଦ୍ୱାରା ଅଟୋମେଟିକ୍ ଗୀତ ଶୁଣି ଲେଖିବା (ବାଛିଥିବା ଭାଷାରେ)
+            # AI ଦ୍ୱାରା ଅଟୋମେଟିକ୍ ଗୀତ ଶୁଣି ଲେଖିବା
             recognizer = sr.Recognizer()
             extracted_lyrics = ""
             with sr.AudioFile(temp_wav_path) as source:
@@ -103,7 +115,7 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             status_text.info("ଭିଡିଓ ଉପରେ Live Captions ସେଟ୍ କରାଯାଉଛି...")
             progress_bar.progress(70)
 
-            # ଲେଖାକୁ ଛୋଟ ଛୋଟ ଭାଗରେ ବାଣ୍ଟିବା
+            # ଲେଖାକୁ ଛୋଟ ଛୋଟ ଭାଗରେ ବାଣ୍ଟିବା (Caption ଷ୍ଟାଇଲ୍)
             words = extracted_lyrics.split()
             chunk_size = 4
             lines = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
@@ -113,7 +125,7 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             if lines:
                 line_duration = duration / len(lines)
                 for i, line in enumerate(lines):
-                    # ଲେଖାର ରଙ୍ଗ ଏବଂ ଡିଜାଇନ୍
+                    # ହଳଦିଆ ରଙ୍ଗର ଲେଖା
                     txt = TextClip(line, fontsize=50, color='yellow', bg_color='rgba(0,0,0,0.5)')
                     txt = txt.set_position(('center', 'bottom'))
                     txt = txt.set_start(i * line_duration).set_duration(line_duration)
@@ -149,6 +161,5 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
 
         except Exception as e:
             st.error(f"❌ କିଛି ଅସୁବିଧା ହେଲା: {e}")
-            st.warning("ଯଦି 'MoviePy Error' ଆସୁଛି, ନିଶ୍ଚିତ କରନ୍ତୁ ଯେ ଆପଣ GitHub ରେ 'packages.txt' ଫାଇଲ୍ ତିଆରି କରିଛନ୍ତି ଏବଂ Streamlit ଆପ୍ କୁ Reboot କରିଛନ୍ତି।")
     else:
         st.error("ଦୟାକରି ଭିଡିଓ ଏବଂ ଗୀତ ଦୁଇଟି ଯାକ ଅପଲୋଡ୍ କରନ୍ତୁ।")

@@ -3,16 +3,33 @@ import os
 import time
 from moviepy.editor import VideoFileClip, AudioFileClip
 import speech_recognition as sr
-from deep_translator import GoogleTranslator
+from deep_translator import MyMemoryTranslator, GoogleTranslator
 from gtts import gTTS
 
-# ଟେମ୍ପରାରୀ ଫାଇଲ୍ ସେଭ୍ କରିବା ପାଇଁ ଫୋଲ୍ଡର
+# Temp folder create karna
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
 st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="centered")
 
-# --- ମୁଖ୍ୟ ଡ୍ୟାସବୋର୍ଡ ---
+# --- License Key ---
+st.sidebar.header("🔑 License Activation")
+st.sidebar.write("ଲମ୍ବା ଭିଡିଓ ପାଇଁ ପ୍ରୋ-କି (Pro Key) ବ୍ୟବହାର କରନ୍ତୁ।")
+
+user_key = st.sidebar.text_input("Enter License Key:", type="password")
+VALID_PRO_KEY = "KULU-PRO-2026"
+
+is_pro_user = False
+if user_key == VALID_PRO_KEY:
+    st.sidebar.success("✅ Pro Version Activated!")
+    is_pro_user = True
+elif user_key != "":
+    st.sidebar.error("❌ Invalid Key! Please try again.")
+
+if not is_pro_user:
+    st.sidebar.warning("⚠️ Demo Mode Active (Max 5 mins)")
+
+# --- Main Dashboard ---
 st.title("🎥 AI Video Translation & Dubbing")
 st.write("ଗୋଟିଏ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ ଆଉ ଯେକୌଣସି ଭାଷାରେ ବଦଳାନ୍ତୁ!")
 st.markdown("---")
@@ -36,21 +53,21 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             status_text = st.empty()
             progress_bar = st.progress(0)
             
-            # ୧. ଭିଡିଓ ଫାଇଲ୍ ଲୋଡ୍ 
+            # 1. Video file load karna
             status_text.text("୧/୫: ଭିଡିଓ ଅପଲୋଡ୍ ହେଉଛି...")
             input_video_path = os.path.join("temp", "input_video.mp4")
             with open(input_video_path, "wb") as f:
                 f.write(uploaded_video.read())
             progress_bar.progress(20)
             
-            # ୨. ଅଡିଓ ବାହାର କରିବା
+            # 2. Audio nikalna
             status_text.text("୨/୫: ଭିଡିଓରୁ ଅଡିଓ ଅଲଗା କରାଯାଉଛି...")
             video = VideoFileClip(input_video_path)
             audio_path = os.path.join("temp", "extracted_audio.wav")
             video.audio.write_audiofile(audio_path, logger=None)
             progress_bar.progress(40)
             
-            # ୩. Speech to Text
+            # 3. Speech to Text
             status_text.text("୩/୫: ଅଡିଓକୁ ଲେଖାରେ ପରିଣତ କରାଯାଉଛି...")
             recognizer = sr.Recognizer()
             extracted_text = ""
@@ -65,29 +82,33 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
                 extracted_text = "Welcome to my video. Have a nice day."
             progress_bar.progress(60)
             
-            # ୪. ଅନୁବାଦ (Translation)
+            # 4. Naya Translation (Google block se bachne ke liye MyMemory use kiya gaya hai)
             status_text.text(f"୪/୫: ଲେଖାକୁ {target_language} ରେ ଅନୁବାଦ କରାଯାଉଛି...")
             translated_text = ""
             
             try:
-                translator = GoogleTranslator(source='auto', target=lang_code)
-                if len(extracted_text) < 3000:
+                # Primary: MyMemoryTranslator (No Blocking)
+                translator = MyMemoryTranslator(source='en', target=lang_code)
+                if len(extracted_text) < 500:
                     translated_text = translator.translate(extracted_text)
                 else:
-                    text_chunks = [extracted_text[i:i+1500] for i in range(0, len(extracted_text), 1500)]
+                    text_chunks = [extracted_text[i:i+499] for i in range(0, len(extracted_text), 499)]
                     for chunk in text_chunks:
                         translated_text += translator.translate(chunk) + " "
                         time.sleep(1)
-            except Exception as e:
-                translated_text = "ଅନୁବାଦ ସମ୍ଭବ ହେଲା ନାହିଁ।" if lang_code == 'or' else "Translation server is busy right now."
+            except Exception:
+                try:
+                    # Fallback: GoogleTranslator
+                    translated_text = GoogleTranslator(source='auto', target=lang_code).translate(extracted_text)
+                except:
+                    translated_text = extracted_text # Agar dono fail ho jayein toh original English bol dega, error nahi dega.
                     
             progress_bar.progress(80)
             
-            # ୫. ନୂଆ ଭିଡିଓ ତିଆରି
+            # 5. Naya Video banana
             status_text.text("୫/୫: ନୂଆ ଭିଡିଓ ପ୍ରସ୍ତୁତ କରାଯାଉଛି...")
             new_audio_path = os.path.join("temp", f"new_audio_{lang_code}.mp3")
             
-            # ନୂଆ ସାଉଣ୍ଡ୍ ସେଭ୍ କରିବା 
             tts = gTTS(text=translated_text, lang=lang_code, slow=False)
             tts.save(new_audio_path)
             
@@ -97,7 +118,6 @@ if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
             st.info(f"📝 AI ଧରିଥିବା ଲେଖା: {extracted_text}")
             st.warning(f"🗣️ ନୂଆ ଅନୁବାଦ: {translated_text}")
 
-            # --- ନୂଆ ଟେଷ୍ଟିଂ (କେବଳ ଅଡିଓ ପ୍ଲେୟାର୍) ---
             st.markdown("### 🎵 ପ୍ରଥମେ କେବଳ ନୂଆ ଅଡିଓ ଶୁଣନ୍ତୁ (AI Voice):")
             st.audio(new_audio_path, format="audio/mp3")
             st.markdown("---")

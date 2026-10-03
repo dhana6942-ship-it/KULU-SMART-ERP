@@ -1,207 +1,89 @@
 import streamlit as st
 import os
-import time
-from moviepy.editor import VideoFileClip, AudioFileClip
-import speech_recognition as sr
-from deep_translator import MyMemoryTranslator, GoogleTranslator
-from gtts import gTTS
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
 
-# ଟେମ୍ପରାରୀ ଫାଇଲ୍ ସେଭ୍ କରିବା ପାଇଁ ଫୋଲ୍ଡର
+# ଫୋଲ୍ଡର ତିଆରି କରିବା
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
-st.set_page_config(page_title="AI Video Dubbing Pro", page_icon="🎥", layout="centered")
+st.set_page_config(page_title="Lyrical Video Status Maker", page_icon="🎬", layout="centered")
 
-# --- ଲାଇସେନ୍ସ କି ---
-st.sidebar.header("🔑 License Activation")
-st.sidebar.write("ଲମ୍ବା ଭିଡିଓ ପାଇଁ ପ୍ରୋ-କି (Pro Key) ବ୍ୟବହାର କରନ୍ତୁ।")
-
-user_key = st.sidebar.text_input("Enter License Key:", type="password")
-VALID_PRO_KEY = "KULU-PRO-2026"
-
-is_pro_user = False
-if user_key == VALID_PRO_KEY:
-    st.sidebar.success("✅ Pro Version Activated!")
-    is_pro_user = True
-elif user_key != "":
-    st.sidebar.error("❌ Invalid Key! Please try again.")
-
-if not is_pro_user:
-    st.sidebar.warning("⚠️ Demo Mode Active (Max 5 mins)")
-
-# --- ମୁଖ୍ୟ ଡ୍ୟାସବୋର୍ଡ ---
-st.title("🎥 AI Video Translation & Dubbing")
-st.write("ପ୍ରଥମେ ନିଜର ଦେଶ ବାଛନ୍ତୁ ଆଉ ସେହି ଦେଶର ସ୍ଥାନୀୟ ଭାଷାରେ ଭିଡିଓ ଡବିଂ କରନ୍ତୁ 🌍!")
+st.title("🎬 AI Lyrical Video Maker 🎶")
+st.write("ଗୋଟିଏ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ, ନିଜ ପସନ୍ଦର ଗୀତ ଲଗାନ୍ତୁ ଏବଂ ତା' ଉପରେ ଲେଖା (Lyrics) ଦେଖାନ୍ତୁ!")
 st.markdown("---")
 
-# 🌍 Country to Local Language Mapping (ଦେଶ ଅନୁସାରେ ଭାଷା)
-country_language_map = {
-    "India (ଭାରତ) 🇮🇳": {
-        "ଓଡ଼ିଆ (Odia)": "or",
-        "ହିନ୍ଦୀ (Hindi)": "hi",
-        "ବେଙ୍ଗଲୀ (Bengali)": "bn",
-        "ତେଲୁଗୁ (Telugu)": "te",
-        "ତାମିଲ୍ (Tamil)": "ta",
-        "ମରାଠୀ (Marathi)": "mr",
-        "ଗୁଜରାଟୀ (Gujarati)": "gu",
-        "ମାଲାୟାଲାମ୍ (Malayalam)": "ml",
-        "କନ୍ନଡ (Kannada)": "kn",
-        "ପଞ୍ଜାବୀ (Punjabi)": "pa",
-        "ଉର୍ଦ୍ଦୁ (Urdu)": "ur"
-    },
-    "USA / UK / Australia 🇺🇸🇬🇧": {
-        "English (ଇଂରାଜୀ)": "en"
-    },
-    "Spain / Latin America 🇪🇸": {
-        "Spanish (ସ୍ପାନିସ୍)": "es"
-    },
-    "France 🇫🇷": {
-        "French (ଫ୍ରେଞ୍ଚ୍)": "fr"
-    },
-    "Germany 🇩🇪": {
-        "German (ଜର୍ମାନ)": "de"
-    },
-    "Japan 🇯🇵": {
-        "Japanese (ଜାପାନୀ)": "ja"
-    },
-    "China 🇨🇳": {
-        "Chinese (ଚାଇନିଜ୍)": "zh-CN"
-    },
-    "Middle East (Arab) 🇦🇪": {
-        "Arabic (ଆରବିକ୍)": "ar"
-    },
-    "Russia 🇷🇺": {
-        "Russian (ରୁଷିଆନ୍)": "ru"
-    },
-    "South Korea 🇰🇷": {
-        "Korean (କୋରିଆନ୍)": "ko"
-    },
-    "Bangladesh 🇧🇩": {
-        "Bengali (ବେଙ୍ଗଲୀ)": "bn"
-    },
-    "Pakistan 🇵🇰": {
-        "Urdu (ଉର୍ଦ୍ଦୁ)": "ur",
-        "Punjabi (ପଞ୍ଜାବୀ)": "pa",
-        "Sindhi (ସିନ୍ଧି)": "sd"
-    }
-}
+# ୟୁଜର୍ ଠାରୁ ଭିଡିଓ, ମ୍ୟୁଜିକ୍ ଆଉ ଲେଖା ନେବା
+uploaded_video = st.file_uploader("୧. ଗୋଟିଏ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ (MP4)", type=["mp4"])
+uploaded_audio = st.file_uploader("୨. ଗୋଟିଏ ମ୍ୟୁଜିକ୍ ବା ଗୀତ ଅପଲୋଡ୍ କରନ୍ତୁ (MP3)", type=["mp3", "wav"])
+lyrics_text = st.text_area("୩. ଭିଡିଓ ଉପରେ କ'ଣ ଲେଖା ହେବ (Lyrics)?", "ତୁମେ ମୋର ପ୍ରଥମ ପ୍ରେମ...\nଆଉ ତୁମେ ହିଁ ମୋର ଶେଷ...")
 
-# ୧. ଦେଶ ବାଛିବାର ଅପ୍ସନ୍ (Country Selection)
-selected_country = st.selectbox("🌍 ପ୍ରଥମେ ଦେଶ ବାଛନ୍ତୁ (Select Country):", list(country_language_map.keys()))
-
-# ୨. ସେହି ଦେଶର ସ୍ଥାନୀୟ ଭାଷା ବାଛିବାର ଅପ୍ସନ୍ (Language Selection)
-lang_map = country_language_map[selected_country]
-target_language = st.selectbox(f"🗣️ ଏବେ {selected_country} ର ସ୍ଥାନୀୟ ଭାଷା ବାଛନ୍ତୁ:", list(lang_map.keys()))
-lang_code = lang_map[target_language]
-
-uploaded_video = st.file_uploader("ଏଠାରେ ଆପଣଙ୍କ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ (mp4)", type=["mp4"])
-
-if st.button("ଭିଡିଓ କନଭର୍ଟ କରନ୍ତୁ 🚀"):
-    if uploaded_video is not None:
+if st.button("ଷ୍ଟାଟସ୍ ଭିଡିଓ ତିଆରି କରନ୍ତୁ 🚀"):
+    if uploaded_video and uploaded_audio and lyrics_text:
         try:
             status_text = st.empty()
-            progress_bar = st.progress(0)
-            
-            # ଭିଡିଓ ଲୋଡ୍ 
-            status_text.text("୧/୫: ଭିଡିଓ ଅପଲୋଡ୍ ହେଉଛି...")
-            input_video_path = os.path.join("temp", "input_video.mp4")
-            with open(input_video_path, "wb") as f:
-                f.write(uploaded_video.read())
-            progress_bar.progress(20)
-            
-            # ଅଡିଓ ବାହାର କରିବା
-            status_text.text("୨/୫: ଭିଡିଓରୁ ଅଡିଓ ଅଲଗା କରାଯାଉଛି...")
-            video = VideoFileClip(input_video_path)
-            audio_path = os.path.join("temp", "extracted_audio.wav")
-            video.audio.write_audiofile(audio_path, logger=None)
-            progress_bar.progress(40)
-            
-            # Speech to Text
-            status_text.text("୩/୫: ଅଡିଓକୁ ଲେଖାରେ ପରିଣତ କରାଯାଉଛି...")
-            recognizer = sr.Recognizer()
-            extracted_text = ""
-            with sr.AudioFile(audio_path) as source:
-                audio_data = recognizer.record(source)
-                try:
-                    extracted_text = recognizer.recognize_google(audio_data)
-                except Exception:
-                    extracted_text = ""
-            
-            if not extracted_text.strip():
-                extracted_text = "Welcome to my video. The audio was not clear."
-            progress_bar.progress(60)
-            
-            # ଅନୁବାଦ (Translation)
-            status_text.text(f"୪/୫: ଲେଖାକୁ {target_language} ରେ ଅନୁବାଦ କରାଯାଉଛି...")
-            translated_text = ""
-            
-            try:
-                translator = MyMemoryTranslator(source='en', target=lang_code)
-                if len(extracted_text) < 500:
-                    translated_text = translator.translate(extracted_text)
-                else:
-                    text_chunks = [extracted_text[i:i+499] for i in range(0, len(extracted_text), 499)]
-                    for chunk in text_chunks:
-                        translated_text += translator.translate(chunk) + " "
-                        time.sleep(1)
-            except Exception:
-                try:
-                    translated_text = GoogleTranslator(source='auto', target=lang_code).translate(extracted_text)
-                except:
-                    translated_text = extracted_text 
-                    
-            progress_bar.progress(80)
-            
-            # ନୂଆ ଭିଡିଓ ଓ ଭଏସ୍ ତିଆରି
-            status_text.text("୫/୫: ନୂଆ ଭିଡିଓ ପ୍ରସ୍ତୁତ କରାଯାଉଛି...")
-            new_audio_path = os.path.join("temp", f"new_audio_{lang_code}.mp3")
-            
-            try:
-                tts = gTTS(text=translated_text, lang=lang_code, slow=False)
-                tts.save(new_audio_path)
-            except Exception:
-                st.warning(f"⚠️ {target_language} ର ଭଏସ୍ ସପୋର୍ଟ ମିଳିଲା ନାହିଁ। ବର୍ତ୍ତମାନ ଇଂରାଜୀ ଭଏସ୍ ଦିଆଯାଉଛି।")
-                tts = gTTS(text=translated_text, lang='en', slow=False)
-                tts.save(new_audio_path)
-            
-            st.success("🎉 ପ୍ରୋସେସ୍ ଶେଷ ହୋଇଛି! ତଳେ ରେଜଲ୍ଟ ଦେଖନ୍ତୁ।")
-            st.balloons()
-            
-            st.info(f"📝 AI ଧରିଥିବା ଲେଖା: {extracted_text}")
-            st.warning(f"🗣️ ନୂଆ ଅନୁବାଦ: {translated_text}")
+            status_text.info("ଭିଡିଓ ପ୍ରସ୍ତୁତ ହେଉଛି, ଦୟାକରି କିଛି ସମୟ ଅପେକ୍ଷା କରନ୍ତୁ...")
+            progress_bar = st.progress(10)
 
-            st.markdown("### 🎵 ପ୍ରଥମେ କେବଳ ନୂଆ ଅଡିଓ ଶୁଣନ୍ତୁ (AI Voice):")
-            st.audio(new_audio_path, format="audio/mp3")
-            st.markdown("---")
+            # ଫାଇଲ୍ ସେଭ୍ କରିବା
+            vid_path = os.path.join("temp", "input_vid.mp4")
+            audio_path = os.path.join("temp", "input_audio.mp3")
+
+            with open(vid_path, "wb") as f:
+                f.write(uploaded_video.read())
+            with open(audio_path, "wb") as f:
+                f.write(uploaded_audio.read())
             
-            # ଶେଷ ଭିଡିଓ ପ୍ରସ୍ତୁତି
-            new_audio_clip = AudioFileClip(new_audio_path)
-            final_video = video.set_audio(new_audio_clip)
+            progress_bar.progress(30)
+
+            # ଭିଡିଓ ଏବଂ ଅଡିଓ କୁ ଲୋଡ୍ କରିବା
+            video_clip = VideoFileClip(vid_path)
+            audio_clip = AudioFileClip(audio_path)
+
+            # ସମୟ ସେଟ୍ କରିବା (ଭିଡିଓ ଏବଂ ଅଡିଓ ଭିତରୁ ଯିଏ ଛୋଟ ଥିବ ସେତିକି ରଖିବା, ଅତିବେଶୀରେ 30 ସେକେଣ୍ଡ)
+            duration = min(video_clip.duration, audio_clip.duration, 30)
             
-            final_video_path = os.path.join("temp", "final_output_video.mp4")
-            final_video.write_videofile(final_video_path, codec="libx264", audio_codec="aac", logger=None)
-            
+            video_clip = video_clip.subclip(0, duration)
+            audio_clip = audio_clip.subclip(0, duration)
+
+            progress_bar.progress(50)
+
+            # ନୂଆ ଅଡିଓକୁ ଭିଡିଓରେ ଲଗାଇବା (ପୁରୁଣା ସାଉଣ୍ଡ୍ ଆପେ ଆପେ କଟିଯିବ)
+            video_clip = video_clip.set_audio(audio_clip)
+
+            # ଲେଖା (Lyrics) କୁ ଭିଡିଓ ଉପରେ ଲଗାଇବା
+            txt_clip = TextClip(lyrics_text, fontsize=40, color='white', bg_color='rgba(0,0,0,0.5)')
+            # ଲେଖାଟିକୁ ଭିଡିଓର ତଳ ମଝି ଭାଗରେ (center, bottom) ରଖିବା
+            txt_clip = txt_clip.set_position(('center', 'bottom')).set_duration(duration)
+
+            progress_bar.progress(70)
+
+            # ଭିଡିଓ ଏବଂ ଲେଖାକୁ ଏକାଠି ଯୋଡ଼ିବା
+            final_video = CompositeVideoClip([video_clip, txt_clip])
+
+            # ଫାଇନାଲ୍ ଭିଡିଓ ସେଭ୍ କରିବା
+            output_path = os.path.join("temp", "lyrical_video_status.mp4")
+            final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac", logger=None)
+
             progress_bar.progress(100)
             status_text.empty()
             
-            st.markdown("### 🎬 ନୂଆ ଭିଡିଓ ଦେଖନ୍ତୁ:")
-            with open(final_video_path, "rb") as file:
+            st.success("🎉 ଆପଣଙ୍କ ଲିରିକାଲ୍ ଷ୍ଟାଟସ୍ ଭିଡିଓ ପ୍ରସ୍ତୁତ ହୋଇଯାଇଛି!")
+            st.balloons()
+
+            # ଭିଡିଓ ଦେଖାଇବା ଏବଂ ଡାଉନଲୋଡ୍ ଅପ୍ସନ୍
+            with open(output_path, "rb") as file:
                 video_bytes = file.read()
-                
             st.video(video_bytes)
-            st.download_button(
-                label=f"⬇️ ନୂଆ ଭିଡିଓ ଡାଉନଲୋଡ୍ କରନ୍ତୁ",
-                data=video_bytes,
-                file_name=f"local_dubbed_video_{lang_code}.mp4",
-                mime="video/mp4"
-            )
-            
-            video.close()
-            new_audio_clip.close()
+
+            st.download_button("⬇️ ନୂଆ ଷ୍ଟାଟସ୍ ଭିଡିଓ ଡାଉନଲୋଡ୍ କରନ୍ତୁ", data=video_bytes, file_name="lyrical_video_status.mp4", mime="video/mp4")
+
+            # ବ୍ୟବହାର ହୋଇଥିବା ଫାଇଲ୍ ଗୁଡ଼ିକୁ ବନ୍ଦ କରିବା
+            video_clip.close()
+            audio_clip.close()
             final_video.close()
-            
+
         except Exception as e:
             st.error(f"❌ କିଛି ଅସୁବିଧା ହେଲା: {e}")
-            
+            st.warning("ଯଦି 'ImageMagick' Error ଆସୁଛି, ତେବେ ପୂର୍ବରୁ କୁହାଯାଇଥିବା 'packages.txt' ଫାଇଲ୍ ଟି GitHub ରେ ବନାନ୍ତୁ।")
     else:
-        st.error("ଦୟାକରି ପ୍ରଥମେ ଗୋଟିଏ ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ।")
+        st.error("ଦୟାକରି ଭିଡିଓ, ଗୀତ ଏବଂ ଲେଖା - ଏହି ୩ଟି ଯାକ ନିଶ୍ଚିତ ଦିଅନ୍ତୁ।")

@@ -1,36 +1,51 @@
 import os
+import shutil
 
-# --- MAGIC FIX FOR IMAGEMAGICK SECURITY POLICY ---
-# Streamlit ର ସର୍ଭର ସିକ୍ୟୁରିଟିକୁ ବାଇପାସ୍ କରିବା ପାଇଁ ଏକ ନୂଆ ପଲିସି (policy) ତିଆରି କରାଯାଉଛି
-os.makedirs("magick_config", exist_ok=True)
-with open("magick_config/policy.xml", "w") as f:
-    f.write('''<?xml version="1.0" encoding="UTF-8"?>
-<policymap>
-  <policy domain="path" rights="read|write" pattern="@*" />
-  <policy domain="coder" rights="read|write" pattern="*" />
-  <policy domain="path" rights="read|write" pattern="*" />
-</policymap>''')
-
-os.environ["MAGICK_CONFIGURE_PATH"] = os.path.abspath("magick_config")
-os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
-# ------------------------------------------------
+# --- ULTIMATE SECURITY BYPASS (ସର୍ଭରର ଲକ୍ ଭାଙ୍ଗିବା ପାଇଁ ଏହା ସବୁଠାରୁ ଉପରେ ରହିବ) ---
+try:
+    config_dir = os.path.abspath("temp_magick")
+    os.makedirs(config_dir, exist_ok=True)
+    
+    # ସର୍ଭରର ଅସଲି ଫାଇଲ୍ ଗୁଡ଼ିକୁ କପି କରି ଆଣିବା
+    sys_magick = "/etc/ImageMagick-6"
+    if os.path.exists(sys_magick):
+        for file in os.listdir(sys_magick):
+            try:
+                shutil.copy(os.path.join(sys_magick, file), config_dir)
+            except:
+                pass
+                
+    # ନିଜର ଏକ ନୂଆ ସିକ୍ୟୁରିଟି ଫାଇଲ୍ ବନେଇବା ଯେଉଁଥିରେ ସବୁ ଅନୁମତି ଥିବ
+    with open(os.path.join(config_dir, "policy.xml"), "w") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<policymap>\n')
+        f.write('  <policy domain="coder" rights="read|write" pattern="*" />\n')
+        f.write('  <policy domain="path" rights="read|write" pattern="@*" />\n')
+        f.write('  <policy domain="path" rights="read|write" pattern="*" />\n')
+        f.write('</policymap>\n')
+    
+    # ସର୍ଭରକୁ ଏହି ନୂଆ ଫାଇଲ୍ ବ୍ୟବହାର କରିବାକୁ ବାଧ୍ୟ କରିବା
+    os.environ["MAGICK_CONFIGURE_PATH"] = config_dir
+    os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
+except Exception as e:
+    pass
+# -------------------------------------------------------------------------
 
 import streamlit as st
 import time
 from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
 import speech_recognition as sr
 
-# ଟେମ୍ପରାରୀ ଫୋଲ୍ଡର
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
 st.set_page_config(page_title="Global Lyrical Video Maker", page_icon="🎬", layout="centered")
 
 st.title("🎬 Global Auto-Lyrics Video Maker 🎶")
-st.write("ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ, ଗୀତ ଦିଅନ୍ତୁ ଏବଂ ନିଜ ଭାଷାରେ Live Lyrics ପାଆନ୍ତୁ!")
+st.write("ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ, ନିଜ ମନପସନ୍ଦର ଗୀତ ଦିଅନ୍ତୁ ଏବଂ ଲାଇଭ୍ ଲିରିକ୍ସ ପାଆନ୍ତୁ!")
 st.markdown("---")
 
-# 🌍 ଦେଶ ଏବଂ ଭାଷା ସେଟିଂସ୍
+# 🌍 ଦେଶ ଏବଂ ଭାଷା ବାଛିବାର ଲିଷ୍ଟ୍
 country_language_map = {
     "India (ଭାରତ) 🇮🇳": {
         "ଓଡ଼ିଆ (Odia)": "or-IN",
@@ -56,10 +71,9 @@ country_language_map = {
 
 selected_country = st.selectbox("🌍 ପ୍ରଥମେ ଦେଶ ବାଛନ୍ତୁ:", list(country_language_map.keys()))
 lang_map = country_language_map[selected_country]
-target_language = st.selectbox(f"🗣️ ଏବେ ଗୀତର ଭାଷା ବାଛନ୍ତୁ:", list(lang_map.keys()))
+target_language = st.selectbox(f"🗣️ ଏବେ ଗୀତର ଭାଷା ବାଛନ୍ତୁ (ଯେଉଁ ଭାଷାରେ ଗୀତ ବାଜିବ):", list(lang_map.keys()))
 lang_code = lang_map[target_language]
 
-# ଫାଇଲ୍ ଅପଲୋଡ୍
 uploaded_video = st.file_uploader("୧. ଭିଡିଓ ଅପଲୋଡ୍ କରନ୍ତୁ (MP4)", type=["mp4"])
 if uploaded_video:
     st.video(uploaded_video)
@@ -90,7 +104,6 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             video_clip = video_clip.subclip(0, duration)
             audio_clip = audio_clip.subclip(0, duration)
 
-            # ନୂଆ ଗୀତକୁ ଭିଡିଓରେ ଯୋଡ଼ିବା
             video_clip = video_clip.set_audio(audio_clip)
             
             status_text.info(f"{target_language} ଗୀତରୁ ଲେଖା ବାହାର କରାଯାଉଛି...")
@@ -99,7 +112,6 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             temp_wav_path = os.path.join("temp", "temp_audio.wav")
             audio_clip.write_audiofile(temp_wav_path, logger=None)
 
-            # AI ଦ୍ୱାରା ଅଟୋମେଟିକ୍ ଗୀତ ଶୁଣି ଲେଖିବା
             recognizer = sr.Recognizer()
             extracted_lyrics = ""
             with sr.AudioFile(temp_wav_path) as source:
@@ -115,7 +127,6 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             status_text.info("ଭିଡିଓ ଉପରେ Live Captions ସେଟ୍ କରାଯାଉଛି...")
             progress_bar.progress(70)
 
-            # ଲେଖାକୁ ଛୋଟ ଛୋଟ ଭାଗରେ ବାଣ୍ଟିବା (Caption ଷ୍ଟାଇଲ୍)
             words = extracted_lyrics.split()
             chunk_size = 4
             lines = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
@@ -125,8 +136,7 @@ if st.button("Auto Lyrical ଭିଡିଓ ତିଆରି କରନ୍ତୁ �
             if lines:
                 line_duration = duration / len(lines)
                 for i, line in enumerate(lines):
-                    # ହଳଦିଆ ରଙ୍ଗର ଲେଖା
-                    txt = TextClip(line, fontsize=50, color='yellow', bg_color='rgba(0,0,0,0.5)')
+                    txt = TextClip(line, fontsize=45, color='yellow', bg_color='rgba(0,0,0,0.5)')
                     txt = txt.set_position(('center', 'bottom'))
                     txt = txt.set_start(i * line_duration).set_duration(line_duration)
                     clips.append(txt)

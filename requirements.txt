@@ -1,1 +1,5 @@
-
+streamlit
+moviepy
+SpeechRecognition
+deep-translator
+gTTS
